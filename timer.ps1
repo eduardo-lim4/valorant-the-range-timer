@@ -97,16 +97,19 @@ $rule.BackColor = $accent
 $form.Controls.Add($rule)
 
 $timeLabel = Add-Label '05:00' 15 51 220 58 34 $foreground ([System.Drawing.FontStyle]::Bold)
-$statusLabel = Add-Label 'PRONTO PARA TREINAR' 20 111 230 19 8 $muted ([System.Drawing.FontStyle]::Bold)
+$statusLabel = Add-Label 'PRONTO PARA TREINAR' 20 111 220 19 8 $muted ([System.Drawing.FontStyle]::Bold)
 $botsLabel = Add-Label '100 BOTS' 246 70 108 25 12 $accent ([System.Drawing.FontStyle]::Bold)
 $botsLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
-$musicButton = Add-Button 'MUSICA' 262 105 92 $background $muted
+$musicButton = Add-Button 'MUSICA' 300 105 54 $background $muted
 $musicButton.Font = New-Object System.Drawing.Font($fontFamily, 8, [System.Drawing.FontStyle]::Bold)
 $toolTip.SetToolTip($musicButton, 'Mostrar ou ocultar o Spotify')
 
 $minutesLabel = Add-Label 'MINUTOS' 19 145 100 17 8 $muted ([System.Drawing.FontStyle]::Bold)
 $secondsLabel = Add-Label 'SEGUNDOS' 136 145 100 17 8 $muted ([System.Drawing.FontStyle]::Bold)
 $targetLabel = Add-Label 'META DE BOTS' 253 145 105 17 8 $muted ([System.Drawing.FontStyle]::Bold)
+$challengeButton = Add-Button 'DESAFIOS' 242 105 54 $background $muted
+$challengeButton.Font = New-Object System.Drawing.Font($fontFamily, 7, [System.Drawing.FontStyle]::Bold)
+[void]$toolTip.SetToolTip($challengeButton, 'Sortear um desafio de treino')
 $minutesInput = Add-Number 19 999 5
 $secondsInput = Add-Number 136 59 0
 $botsInput = Add-Number 253 9999 100
@@ -132,6 +135,8 @@ $compactBotsFont = New-Object System.Drawing.Font($fontFamily, 9, [System.Drawin
 $regularCloseFont = $closeButton.Font
 $minimalCloseFont = New-Object System.Drawing.Font($fontFamily, 7, [System.Drawing.FontStyle]::Bold)
 $settingsControls = @($minutesLabel, $secondsLabel, $targetLabel, $minutesInput, $secondsInput, $botsInput, $startButton, $resetButton)
+$script:challengeSession = $null
+$script:challengeControlsEnabled = $true
 
 # O painel de música é opcional e permanece disponível também no modo compacto.
 $script:musicVisible = $false
@@ -275,18 +280,18 @@ function Add-ModeButton {
     return $button
 }
 $padraoModeButton = Add-ModeButton 'PADRAO' 12 64
-$cleanModeButton = Add-ModeButton 'CLEAN' 80 56
+$windowSettingsButton = Add-ModeButton 'JANELA' 80 56
 $competitivoModeButton = Add-ModeButton 'COMPETITIVO' 140 92
 $customModeButton = Add-ModeButton 'CUSTOM' 236 72
 $coresButton = Add-ModeButton 'CORES' 312 52
 [void]$toolTip.SetToolTip($padraoModeButton, 'Aparencia padrao')
-[void]$toolTip.SetToolTip($cleanModeButton, 'Fundo transparente')
+[void]$toolTip.SetToolTip($windowSettingsButton, 'Ajustar opacidade e tamanho da janela')
 [void]$toolTip.SetToolTip($competitivoModeButton, 'Somente timer e meta de bots')
 [void]$toolTip.SetToolTip($customModeButton, 'Cores escolhidas por voce')
 [void]$toolTip.SetToolTip($coresButton, 'Escolher as cores personalizadas')
 $coresButton.Visible = $false
 $padraoModeButton.Add_Click({ Set-UIMode 'Padrao' })
-$cleanModeButton.Add_Click({ Set-UIMode 'Clean' })
+$windowSettingsButton.Add_Click({ Show-WindowSettings })
 $competitivoModeButton.Add_Click({ Set-UIMode 'Competitivo' })
 $customModeButton.Add_Click({ Set-UIMode 'Customizado' })
 $coresButton.Add_Click({ Show-ColorSettings })
@@ -322,19 +327,16 @@ function Update-MusicIconTheme {
 
 # Aplica a paleta atual a todos os controles, incluindo o overlay do Spotify.
 function Update-ThemeColors {
-    $clean = ($script:uiMode -eq 'Clean')
-    # No modo Clean o fundo vira chave de transparencia; os botoes usam superficie solida.
-    $solidBg = if ($clean) { $script:surface } else { $script:background }
+    $solidBg = $script:background
     $form.BackColor = $script:background
-    $form.TransparencyKey = if ($clean) { $script:background } else { [System.Drawing.Color]::Empty }
+    $form.TransparencyKey = [System.Drawing.Color]::Empty
     $rule.BackColor = $script:accent
     $brand.ForeColor = $script:foreground
     $timeLabel.ForeColor = if ($script:finished) { $script:accent } else { $script:foreground }
     $statusLabel.ForeColor = $script:muted
     $botsLabel.ForeColor = $script:accent
     foreach ($label in @($minutesLabel, $secondsLabel, $targetLabel)) { $label.ForeColor = $script:muted }
-    # No modo Clean o visor e a meta ganham uma placa solida para continuar legiveis e arrastaveis.
-    $chipColor = if ($clean) { $script:surface } else { $script:background }
+    $chipColor = $script:background
     $timeLabel.BackColor = $chipColor
     $botsLabel.BackColor = $chipColor
     foreach ($control in @($brand, $statusLabel, $minutesLabel, $secondsLabel, $targetLabel)) { $control.BackColor = $script:background }
@@ -346,7 +348,7 @@ function Update-ThemeColors {
     $startButton.ForeColor = $script:accentText
     $resetButton.BackColor = $script:surface
     $resetButton.ForeColor = $script:foreground
-    foreach ($button in @($randomButton, $hotkeyButton, $soundButton, $compactButton, $closeButton, $musicButton)) {
+    foreach ($button in @($randomButton, $hotkeyButton, $soundButton, $compactButton, $closeButton, $musicButton, $challengeButton)) {
         $button.BackColor = $solidBg
         $button.ForeColor = $script:muted
     }
@@ -358,10 +360,12 @@ function Update-ThemeColors {
     $musicTime.ForeColor = $script:muted
     foreach ($button in @($previousTrack, $playTrack, $nextTrack)) { $button.BackColor = $solidBg }
     $modeBar.BackColor = $script:background
-    $coresButton.BackColor = $solidBg
-    $coresButton.ForeColor = $script:muted
+    foreach ($button in @($coresButton, $windowSettingsButton)) {
+        $button.BackColor = $solidBg
+        $button.ForeColor = $script:muted
+    }
     $modeButtons = @(
-        @($padraoModeButton, 'Padrao'), @($cleanModeButton, 'Clean'),
+        @($padraoModeButton, 'Padrao'),
         @($competitivoModeButton, 'Competitivo'), @($customModeButton, 'Customizado')
     )
     foreach ($pair in $modeButtons) {
@@ -418,6 +422,12 @@ $soundConfigPath = Join-Path $soundDirectory 'sound.json'
 $soundFilePath = Join-Path $soundDirectory 'alert.wav'
 $hotkeyConfigPath = Join-Path $soundDirectory 'hotkeys.json'
 $themeConfigPath = Join-Path $soundDirectory 'theme.json'
+$windowConfigPath = Join-Path $soundDirectory 'window.json'
+$script:windowOpacity = 100
+$script:windowScale = 100
+$script:baseControlBounds = @{}
+$script:baseControlFonts = @{}
+$script:scaledFonts = New-Object System.Collections.ArrayList
 $script:hotkeys = [RangeHotkeys]::new()
 $hotkeyActionNames = @('', 'Iniciar / continuar', 'Pausar', 'Reiniciar', 'Abrir / compacto')
 
@@ -845,9 +855,56 @@ function Set-CompactMode {
     Set-Layout
 }
 
+function Get-WindowControls {
+    param($Parent)
+    foreach ($control in $Parent.Controls) {
+        $control
+        Get-WindowControls $control
+    }
+}
+
+function Reset-WindowControlScale {
+    $controls = @(Get-WindowControls $form)
+    if ($script:baseControlBounds.Count -eq 0) {
+        foreach ($control in $controls) {
+            $script:baseControlBounds[$control] = $control.Bounds
+            $script:baseControlFonts[$control] = $control.Font
+        }
+    } else {
+        foreach ($control in $controls) {
+            $control.Bounds = $script:baseControlBounds[$control]
+            $control.Font = $script:baseControlFonts[$control]
+        }
+        foreach ($font in $script:scaledFonts) { $font.Dispose() }
+        $script:scaledFonts.Clear()
+    }
+}
+
+function Apply-WindowControlScale {
+    $factor = $script:windowScale / 100.0
+    if ($factor -eq 1) { return }
+    $baseSize = $form.ClientSize
+    $controls = @(Get-WindowControls $form)
+    $fonts = @{}
+    foreach ($control in $controls) { $fonts[$control] = $control.Font }
+    foreach ($control in $controls) {
+        $bounds = $control.Bounds
+        $control.SetBounds(
+            [int][Math]::Round($bounds.X * $factor), [int][Math]::Round($bounds.Y * $factor),
+            [int][Math]::Round($bounds.Width * $factor), [int][Math]::Round($bounds.Height * $factor)
+        )
+        $font = $fonts[$control]
+        $scaledFont = New-Object System.Drawing.Font($font.FontFamily, [single]($font.Size * $factor), $font.Style, $font.Unit)
+        [void]$script:scaledFonts.Add($scaledFont)
+        $control.Font = $scaledFont
+    }
+    $form.ClientSize = New-Object System.Drawing.Size([int][Math]::Round($baseSize.Width * $factor), [int][Math]::Round($baseSize.Height * $factor))
+}
+
 # Reorganiza a janela conforme o modo de interface e o estado compacto.
 # O modo Competitivo usa o layout minimo: somente visor, meta e barra de modos.
 function Set-Layout {
+    Reset-WindowControlScale
     $minimal = ($script:uiMode -eq 'Competitivo')
     foreach ($control in $settingsControls) {
         $control.Visible = ((-not $script:compact) -and (-not $minimal))
@@ -867,6 +924,7 @@ function Set-Layout {
         $musicButton.Visible = $false
         $rule.Visible = $false
         $statusLabel.Visible = $false
+        $challengeButton.Visible = $false
         $closeButton.Location = New-Object System.Drawing.Point(238, 4)
         $closeButton.Size = New-Object System.Drawing.Size(20, 20)
         $closeButton.Font = $minimalCloseFont
@@ -889,15 +947,18 @@ function Set-Layout {
         $musicButton.Visible = $true
         $rule.Visible = $true
         $statusLabel.Visible = $true
+        $challengeButton.Visible = $true
         $closeButton.Font = $regularCloseFont
         $closeButton.Size = New-Object System.Drawing.Size(24, 33)
 
         if ($script:compact) {
             $form.ClientSize = New-Object System.Drawing.Size(264, (140 + $(if ($script:musicVisible) { 146 } else { 0 })))
             $musicPanel.Location = New-Object System.Drawing.Point(0, 140)
+            $challengeButton.Location = New-Object System.Drawing.Point(117, 84)
+            $challengeButton.Size = New-Object System.Drawing.Size(67, 24)
             $musicButton.Location = New-Object System.Drawing.Point(187, 84)
             $musicButton.Size = New-Object System.Drawing.Size(67, 24)
-            $statusLabel.Size = New-Object System.Drawing.Size(165, 19)
+            $statusLabel.Size = New-Object System.Drawing.Size(97, 19)
             $brand.Text = 'RANGE'
             $brand.Font = $compactBrandFont
             $brand.Location = New-Object System.Drawing.Point(8, 13)
@@ -926,9 +987,11 @@ function Set-Layout {
         } else {
             $form.ClientSize = New-Object System.Drawing.Size(372, (282 + $(if ($script:musicVisible) { 146 } else { 0 })))
             $musicPanel.Location = New-Object System.Drawing.Point(54, 282)
-            $musicButton.Location = New-Object System.Drawing.Point(262, 105)
-            $musicButton.Size = New-Object System.Drawing.Size(92, 33)
-            $statusLabel.Size = New-Object System.Drawing.Size(230, 19)
+            $musicButton.Location = New-Object System.Drawing.Point(300, 105)
+            $musicButton.Size = New-Object System.Drawing.Size(54, 33)
+            $statusLabel.Size = New-Object System.Drawing.Size(220, 19)
+            $challengeButton.Location = New-Object System.Drawing.Point(242, 105)
+            $challengeButton.Size = New-Object System.Drawing.Size(54, 33)
             $brand.Text = 'RANGE / TIMER'
             $brand.Font = $regularBrandFont
             $brand.Location = New-Object System.Drawing.Point(12, 13)
@@ -967,13 +1030,13 @@ function Set-Layout {
     # Os botoes de modo se ajustam a largura disponivel do layout atual.
     $modeButtonLayout = if ($compactModeButtons) {
         @(
-            @($padraoModeButton, 8, 44), @($cleanModeButton, 56, 40),
-            @($competitivoModeButton, 100, 64), @($customModeButton, 168, 46),
-            @($coresButton, 218, 38)
+            @($padraoModeButton, 4, 45), @($windowSettingsButton, 50, 44),
+            @($competitivoModeButton, 95, 82), @($customModeButton, 178, 44),
+            @($coresButton, 223, 40)
         )
     } else {
         @(
-            @($padraoModeButton, 12, 64), @($cleanModeButton, 80, 56),
+            @($padraoModeButton, 12, 64), @($windowSettingsButton, 80, 56),
             @($competitivoModeButton, 140, 92), @($customModeButton, 236, 72),
             @($coresButton, 312, 52)
         )
@@ -985,8 +1048,10 @@ function Set-Layout {
         $pair[0].Font = $modeButtonFont
     }
 
+    Apply-WindowControlScale
+
     # Mantem a janela dentro da area de trabalho apos o redimensionamento.
-    $workingArea = [System.Windows.Forms.Screen]::FromControl($form).WorkingArea
+    $workingArea = [System.Windows.Forms.Screen]::FromRectangle($form.Bounds).WorkingArea
     $left = [Math]::Max($workingArea.Left, [Math]::Min($form.Left, $workingArea.Right - $form.Width))
     $top = [Math]::Max($workingArea.Top, [Math]::Min($form.Top, $workingArea.Bottom - $form.Height))
     $form.Location = New-Object System.Drawing.Point($left, $top)
@@ -1035,16 +1100,142 @@ function Load-ThemeConfig {
         if (-not (Test-Path -LiteralPath $themeConfigPath)) { return 'Padrao' }
         $savedTheme = Get-Content -LiteralPath $themeConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $mode = [string]$savedTheme.mode
-        if (@('Padrao', 'Clean', 'Competitivo', 'Customizado') -notcontains $mode) { return 'Padrao' }
-        if ($mode -eq 'Customizado') {
-            $savedBackground = Convert-HexToColor ([string]$savedTheme.background)
-            $savedAccent = Convert-HexToColor ([string]$savedTheme.accent)
-            if ($null -ne $savedBackground) { $script:customBackground = $savedBackground }
-            if ($null -ne $savedAccent) { $script:customAccent = $savedAccent }
-        }
+        $savedBackground = Convert-HexToColor ([string]$savedTheme.background)
+        $savedAccent = Convert-HexToColor ([string]$savedTheme.accent)
+        if ($null -ne $savedBackground) { $script:customBackground = $savedBackground }
+        if ($null -ne $savedAccent) { $script:customAccent = $savedAccent }
+        if (@('Padrao', 'Competitivo', 'Customizado') -notcontains $mode) { return 'Padrao' }
         return $mode
     } catch {
         return 'Padrao'
+    }
+}
+
+function Save-WindowSettings {
+    try {
+        [void][System.IO.Directory]::CreateDirectory($soundDirectory)
+        @{
+            opacity = $script:windowOpacity
+            scale = $script:windowScale
+            x = $form.Left
+            y = $form.Top
+            compact = $script:compact
+            musicVisible = $script:musicVisible
+        } | ConvertTo-Json | Set-Content -LiteralPath $windowConfigPath -Encoding UTF8 -ErrorAction Stop
+    } catch {
+        [void][System.Windows.Forms.MessageBox]::Show('Nao foi possivel salvar as configuracoes da janela.', 'Range Timer', 'OK', 'Warning')
+    }
+}
+
+function Load-WindowSettings {
+    try {
+        if (-not (Test-Path -LiteralPath $windowConfigPath)) { return }
+        $savedWindow = Get-Content -LiteralPath $windowConfigPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json
+        $value = 0
+        if ([int]::TryParse([string]$savedWindow.opacity, [ref]$value) -and $value -ge 30 -and $value -le 100) { $script:windowOpacity = $value }
+        if ([int]::TryParse([string]$savedWindow.scale, [ref]$value) -and $value -ge 80 -and $value -le 150) { $script:windowScale = $value }
+        if ($savedWindow.compact -is [bool]) { $script:compact = $savedWindow.compact }
+        if ($savedWindow.musicVisible -is [bool]) { $script:musicVisible = $savedWindow.musicVisible }
+        $left = 0
+        $top = 0
+        if ([int]::TryParse([string]$savedWindow.x, [ref]$left) -and [int]::TryParse([string]$savedWindow.y, [ref]$top) -and
+            [Math]::Abs([long]$left) -le 100000 -and [Math]::Abs([long]$top) -le 100000) {
+            $form.Location = New-Object System.Drawing.Point($left, $top)
+        }
+    } catch { }
+    $form.Opacity = $script:windowOpacity / 100.0
+}
+
+function Show-WindowSettings {
+    $dialog = New-Object System.Windows.Forms.Form
+    $dialog.Text = 'Janela do overlay'
+    $dialog.ClientSize = New-Object System.Drawing.Size(340, 230)
+    $dialog.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $dialog.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
+    $dialog.BackColor = $script:background
+    $dialog.ForeColor = $script:foreground
+    $dialog.Font = New-Object System.Drawing.Font($fontFamily, 9)
+    $dialog.MaximizeBox = $false
+    $dialog.MinimizeBox = $false
+    $dialog.ShowInTaskbar = $false
+    $dialog.TopMost = $true
+
+    $opacityLabel = New-Object System.Windows.Forms.Label
+    $opacityLabel.Location = New-Object System.Drawing.Point(18, 16)
+    $opacityLabel.Size = New-Object System.Drawing.Size(300, 22)
+    $dialog.Controls.Add($opacityLabel)
+    $opacitySlider = New-Object System.Windows.Forms.TrackBar
+    $opacitySlider.Location = New-Object System.Drawing.Point(14, 40)
+    $opacitySlider.Size = New-Object System.Drawing.Size(312, 45)
+    $opacitySlider.Minimum = 30
+    $opacitySlider.Maximum = 100
+    $opacitySlider.TickFrequency = 10
+    $opacitySlider.Value = $script:windowOpacity
+    $opacitySlider.AccessibleName = 'Opacidade'
+    $dialog.Controls.Add($opacitySlider)
+
+    $scaleLabel = New-Object System.Windows.Forms.Label
+    $scaleLabel.Location = New-Object System.Drawing.Point(18, 94)
+    $scaleLabel.Size = New-Object System.Drawing.Size(300, 22)
+    $dialog.Controls.Add($scaleLabel)
+    $scaleSlider = New-Object System.Windows.Forms.TrackBar
+    $scaleSlider.Location = New-Object System.Drawing.Point(14, 118)
+    $scaleSlider.Size = New-Object System.Drawing.Size(312, 45)
+    $scaleSlider.Minimum = 80
+    $scaleSlider.Maximum = 150
+    $scaleSlider.TickFrequency = 10
+    $scaleSlider.Value = $script:windowScale
+    $scaleSlider.AccessibleName = 'Tamanho'
+    $dialog.Controls.Add($scaleSlider)
+
+    $applyButton = New-Object System.Windows.Forms.Button
+    $applyButton.Text = 'APLICAR'
+    $applyButton.Location = New-Object System.Drawing.Point(120, 180)
+    $applyButton.Size = New-Object System.Drawing.Size(96, 32)
+    $applyButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $applyButton.FlatAppearance.BorderSize = 0
+    $applyButton.BackColor = $script:accent
+    $applyButton.ForeColor = $script:accentText
+    $dialog.Controls.Add($applyButton)
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Text = 'CANCELAR'
+    $cancelButton.Location = New-Object System.Drawing.Point(226, 180)
+    $cancelButton.Size = New-Object System.Drawing.Size(96, 32)
+    $cancelButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $cancelButton.FlatAppearance.BorderSize = 0
+    $cancelButton.BackColor = $script:surface
+    $cancelButton.ForeColor = $script:foreground
+    $dialog.Controls.Add($cancelButton)
+
+    $originalOpacity = $script:windowOpacity
+    $originalScale = $script:windowScale
+    $originalLocation = $form.Location
+    $opacityLabel.Text = 'OPACIDADE: {0}%' -f $script:windowOpacity
+    $scaleLabel.Text = 'TAMANHO: {0}%' -f $script:windowScale
+    $opacitySlider.Add_ValueChanged({
+        $script:windowOpacity = $opacitySlider.Value
+        $opacityLabel.Text = 'OPACIDADE: {0}%' -f $script:windowOpacity
+        $form.Opacity = $script:windowOpacity / 100.0
+    })
+    $scaleSlider.Add_ValueChanged({
+        $script:windowScale = $scaleSlider.Value
+        $scaleLabel.Text = 'TAMANHO: {0}%' -f $script:windowScale
+        Set-Layout
+    })
+    $applyButton.Add_Click({ $dialog.DialogResult = [System.Windows.Forms.DialogResult]::OK; $dialog.Close() })
+    $cancelButton.Add_Click({ $dialog.Close() })
+    try {
+        if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
+            Save-WindowSettings
+        } else {
+            $script:windowOpacity = $originalOpacity
+            $script:windowScale = $originalScale
+            $form.Opacity = $originalOpacity / 100.0
+            $form.Location = $originalLocation
+            Set-Layout
+        }
+    } finally {
+        $dialog.Dispose()
     }
 }
 
@@ -1052,7 +1243,7 @@ function Load-ThemeConfig {
 function Show-ColorSettings {
     $dialog = New-Object System.Windows.Forms.Form
     $dialog.Text = 'Cores personalizadas'
-    $dialog.ClientSize = New-Object System.Drawing.Size(340, 302)
+    $dialog.ClientSize = New-Object System.Drawing.Size(340, 370)
     $dialog.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
     $dialog.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
     $dialog.BackColor = $background
@@ -1151,11 +1342,18 @@ function Show-ColorSettings {
         $input.Add_ValueChanged({ Update-ColorPreview })
     }
 
+    $shareStatus = New-Object System.Windows.Forms.Label
+    $shareStatus.Text = 'Codigo: #RRGGBB / #RRGGBB (fundo / detalhe)'
+    $shareStatus.Location = New-Object System.Drawing.Point(18, 279)
+    $shareStatus.Size = New-Object System.Drawing.Size(304, 32)
+    $shareStatus.ForeColor = $muted
+    $dialog.Controls.Add($shareStatus)
+
     function Add-ColorButton {
-        param($Text, $X, $Width, $Color)
+        param($Text, $X, $Width, $Color, $Y = 318)
         $button = New-Object System.Windows.Forms.Button
         $button.Text = $Text
-        $button.Location = New-Object System.Drawing.Point($X, 250)
+        $button.Location = New-Object System.Drawing.Point($X, $Y)
         $button.Size = New-Object System.Drawing.Size($Width, 32)
         $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
         $button.FlatAppearance.BorderSize = 0
@@ -1167,9 +1365,43 @@ function Show-ColorSettings {
         return $button
     }
 
+    $copyThemeButton = Add-ColorButton 'COPIAR CODIGO' 18 148 $surface 240
+    $pasteThemeButton = Add-ColorButton 'COLAR CODIGO' 174 148 $surface 240
     $defaultColorsButton = Add-ColorButton 'PADRAO' 18 96 $surface
     $applyColorsButton = Add-ColorButton 'APLICAR' 124 96 $accent
     $cancelColorsButton = Add-ColorButton 'CANCELAR' 230 92 $surface
+
+    $copyThemeButton.Add_Click({
+        try {
+            $chosenBackground = [System.Drawing.Color]::FromArgb([int]$bgRed.Value, [int]$bgGreen.Value, [int]$bgBlue.Value)
+            $chosenAccent = [System.Drawing.Color]::FromArgb([int]$acRed.Value, [int]$acGreen.Value, [int]$acBlue.Value)
+            $code = '#{0} / #{1}' -f (Convert-ColorToHex $chosenBackground), (Convert-ColorToHex $chosenAccent)
+            [System.Windows.Forms.Clipboard]::SetText($code)
+            $shareStatus.Text = 'Codigo copiado! Envie para seus amigos.'
+        } catch {
+            $shareStatus.Text = 'Nao foi possivel copiar. Tente novamente.'
+        }
+    })
+    $pasteThemeButton.Add_Click({
+        try {
+            $code = [System.Windows.Forms.Clipboard]::GetText()
+            if (-not ($code -match '^\s*#([0-9a-fA-F]{6})\s*/\s*#([0-9a-fA-F]{6})\s*$')) {
+                $shareStatus.Text = 'Codigo invalido. Use #RRGGBB / #RRGGBB.'
+                return
+            }
+            $importBackground = Convert-HexToColor $Matches[1]
+            $importAccent = Convert-HexToColor $Matches[2]
+            $bgRed.Value = $importBackground.R
+            $bgGreen.Value = $importBackground.G
+            $bgBlue.Value = $importBackground.B
+            $acRed.Value = $importAccent.R
+            $acGreen.Value = $importAccent.G
+            $acBlue.Value = $importAccent.B
+            $shareStatus.Text = 'Codigo carregado. Confira e clique em APLICAR.'
+        } catch {
+            $shareStatus.Text = 'Nao foi possivel ler a area de transferencia.'
+        }
+    })
 
     $defaultColorsButton.Add_Click({
         $bgRed.Value = $defaultBackground.R
@@ -1258,6 +1490,203 @@ $musicButton.Add_Click({
     if ($script:musicVisible) { Update-MusicPanel }
 })
 
+# O desafio define a regra e, quando existir, tambem o tempo e a meta do treino.
+$script:challengeCatalog = @(
+    [pscustomobject]@{ Id = 'Headshot'; Group = 'Mira e crosshair'; Title = 'SO HEADSHOT'; Rule = 'Bot eliminado sem headshot nao conta para a meta.'; Timed = $false; Minutes = 0; Seconds = 0; Bots = 0 }
+    [pscustomobject]@{ Id = 'Flick'; Group = 'Mira e crosshair'; Title = 'FLICK'; Rule = 'Vire a camera rapidamente e finalize com um microajuste preciso.'; Timed = $false; Minutes = 0; Seconds = 0; Bots = 0 }
+    [pscustomobject]@{ Id = 'TapBurst'; Group = 'Controle de arma'; Title = 'TAP OU BURST'; Rule = 'Use taps ou bursts de no maximo 3 balas. Spray acima disso nao vale.'; Timed = $false; Minutes = 0; Seconds = 0; Bots = 0 }
+    [pscustomobject]@{ Id = 'Pistola'; Group = 'Controle de arma'; Title = 'SOMENTE PISTOLA'; Rule = 'Use apenas Sheriff, Classic, Bandit ou Ghost.'; Timed = $false; Minutes = 0; Seconds = 0; Bots = 0 }
+    [pscustomobject]@{ Id = 'CounterStrafe'; Group = 'Movimento'; Title = 'COUNTER-STRAFE'; Rule = 'Sempre compense A/D com a tecla oposta. Nao atire andando.'; Timed = $false; Minutes = 0; Seconds = 0; Bots = 0 }
+    [pscustomobject]@{ Id = 'PeekRecuo'; Group = 'Movimento'; Title = 'PEEK E RECUO'; Rule = 'Abra o angulo e volte ao cover antes de enfrentar o proximo bot.'; Timed = $false; Minutes = 0; Seconds = 0; Bots = 0 }
+    [pscustomobject]@{ Id = '50x2'; Group = 'Pressao de tempo'; Title = '50 BOTS EM 2 MINUTOS'; Rule = 'Elimine 50 bots antes do tempo acabar.'; Timed = $true; Minutes = 2; Seconds = 0; Bots = 50 }
+    [pscustomobject]@{ Id = '100x4'; Group = 'Pressao de tempo'; Title = '100 BOTS EM 4 MINUTOS'; Rule = 'Elimine 100 bots antes do tempo acabar.'; Timed = $true; Minutes = 4; Seconds = 0; Bots = 100 }
+)
+
+function Get-RemainingSeconds {
+    return [Math]::Max(0, [Math]::Ceiling($script:duration - $script:clock.Elapsed.TotalSeconds))
+}
+
+function Set-ChallengeControlsEnabled {
+    param([bool]$Enabled)
+    if ($script:challengeControlsEnabled -eq $Enabled) { return }
+    $script:challengeControlsEnabled = $Enabled
+    $minutesInput.Enabled = $Enabled
+    $secondsInput.Enabled = $Enabled
+    $botsInput.Enabled = $Enabled
+    $randomButton.Enabled = $Enabled
+    $hotkeyButton.Enabled = $Enabled
+    $soundButton.Enabled = $Enabled
+    $compactButton.Enabled = $Enabled
+    $musicButton.Enabled = $Enabled
+    $windowSettingsButton.Enabled = $Enabled
+    $padraoModeButton.Enabled = $Enabled
+    $competitivoModeButton.Enabled = $Enabled
+    $customModeButton.Enabled = $Enabled
+    $coresButton.Enabled = $Enabled
+    $closeButton.Enabled = $Enabled
+}
+
+# A confirmacao pausa o timer em segundo plano e retoma apenas se a troca for recusada.
+function Confirm-ChallengeAction {
+    param([string]$Message, [string]$Title = 'Confirmar desafio')
+    $timerRunning = $script:clock.IsRunning
+    $ticker.Stop()
+    if ($timerRunning) { $script:clock.Stop() }
+    Set-ChallengeControlsEnabled $false
+    try {
+        $answer = [System.Windows.Forms.MessageBox]::Show($form, $Message, $Title, [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question, [System.Windows.Forms.MessageBoxDefaultButton]::Button2)
+    } finally {
+        Set-ChallengeControlsEnabled $true
+        if ($timerRunning) { $script:clock.Start(); $ticker.Start() }
+    }
+    return ($answer -eq [System.Windows.Forms.DialogResult]::Yes)
+}
+
+function Update-ChallengeStatus {
+    if ($null -eq $script:challengeSession) { return }
+    $title = $script:challengeSession.Title
+    if ($script:finished) {
+        $statusLabel.Text = 'TEMPO ESGOTADO: {0}' -f $title
+    } elseif ($script:clock.IsRunning) {
+        $statusLabel.Text = 'DESAFIO: {0}' -f $title
+    } else {
+        $statusLabel.Text = 'PAUSADO: {0}' -f $title
+    }
+}
+
+function Abandon-Challenge {
+    $script:challengeSession = $null
+    $challengeButton.Text = 'DESAFIOS'
+    [void]$toolTip.SetToolTip($challengeButton, 'Sortear um desafio de treino')
+}
+
+function Show-ChallengePicker {
+    $dialog = New-Object System.Windows.Forms.Form
+    $dialog.Text = 'Desafios de treino'
+    $dialog.ClientSize = New-Object System.Drawing.Size(430, 482)
+    $dialog.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $dialog.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
+    $dialog.BackColor = $background
+    $dialog.ForeColor = $foreground
+    $dialog.Font = New-Object System.Drawing.Font($fontFamily, 9)
+    $dialog.MaximizeBox = $false
+    $dialog.MinimizeBox = $false
+    $dialog.ShowInTaskbar = $false
+    $dialog.TopMost = $true
+
+    $instruction = New-Object System.Windows.Forms.Label
+    $instruction.Text = 'Sorteie um desafio geral ou escolha uma categoria. O tempo so comeca depois da sua confirmacao.'
+    $instruction.Location = New-Object System.Drawing.Point(18, 14)
+    $instruction.Size = New-Object System.Drawing.Size(394, 36)
+    $instruction.ForeColor = $muted
+    $dialog.Controls.Add($instruction)
+
+    function Add-ChallengeButton {
+        param($Text, $X, $Y, $Width, $Height = 38, $Primary = $false)
+        $button = New-Object System.Windows.Forms.Button
+        $button.Text = $Text
+        $button.Location = New-Object System.Drawing.Point($X, $Y)
+        $button.Size = New-Object System.Drawing.Size($Width, $Height)
+        $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $button.FlatAppearance.BorderSize = 0
+        $button.BackColor = if ($Primary) { $accent } else { $surface }
+        $button.ForeColor = if ($Primary) { $accentText } else { $foreground }
+        $button.Font = New-Object System.Drawing.Font($fontFamily, 8, [System.Drawing.FontStyle]::Bold)
+        $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+        $dialog.Controls.Add($button)
+        return $button
+    }
+
+    $categoryLabel = New-Object System.Windows.Forms.Label
+    $categoryLabel.Location = New-Object System.Drawing.Point(18, 55)
+    $categoryLabel.Size = New-Object System.Drawing.Size(394, 20)
+    $categoryLabel.ForeColor = $muted
+    $dialog.Controls.Add($categoryLabel)
+    $resultLabel = New-Object System.Windows.Forms.Label
+    $resultLabel.Location = New-Object System.Drawing.Point(18, 78)
+    $resultLabel.Size = New-Object System.Drawing.Size(394, 112)
+    $resultLabel.ForeColor = $foreground
+    $resultLabel.BackColor = $surface
+    $dialog.Controls.Add($resultLabel)
+
+    function Select-Challenge {
+        param([string]$Group = '')
+        $pool = if ($Group) { @($script:challengeCatalog | Where-Object Group -eq $Group) } else { @($script:challengeCatalog) }
+        $script:selectedChallenge = Get-Random -InputObject $pool
+        $categoryLabel.Text = ($script:selectedChallenge.Group).ToUpperInvariant()
+        $time = if ($script:selectedChallenge.Timed) { '{0} minutos | {1} bots' -f $script:selectedChallenge.Minutes, $script:selectedChallenge.Bots } else { 'Tempo e meta: os definidos por voce no timer' }
+        $resultLabel.Text = "{0}`r`n`r`n{1}`r`n`r`n{2}" -f $script:selectedChallenge.Title, $script:selectedChallenge.Rule, $time
+    }
+
+    $drawButton = Add-ChallengeButton 'SORTEAR DESAFIO' 18 200 244 38 $true
+    $backButton = Add-ChallengeButton 'FECHAR' 276 200 136
+    $categoryGroups = @('Mira e crosshair', 'Controle de arma', 'Movimento', 'Pressao de tempo')
+    for ($index = 0; $index -lt $categoryGroups.Count; $index++) {
+        $button = Add-ChallengeButton (@('MIRA / CROSSHAIR', 'CONTROLE DE ARMA', 'MOVIMENTO', 'PRESSAO DE TEMPO')[$index]) (18 + ($index % 2) * 202) (250 + [Math]::Floor($index / 2) * 44) 192
+        $button.Add_Click({
+            Select-Challenge $this.Tag
+            $readyButton.Enabled = $true
+        })
+        $button.Tag = $categoryGroups[$index]
+    }
+    $readyButton = Add-ChallengeButton 'ESTOU PRONTO' 18 350 394 42 $true
+    $readyButton.Enabled = $false
+    $hint = New-Object System.Windows.Forms.Label
+    $hint.Text = 'Pausar preserva o desafio. Reiniciar exige uma nova confirmacao.'
+    $hint.Location = New-Object System.Drawing.Point(18, 408)
+    $hint.Size = New-Object System.Drawing.Size(394, 32)
+    $hint.ForeColor = $muted
+    $dialog.Controls.Add($hint)
+    $closePickerButton = Add-ChallengeButton 'FECHAR' 18 440 394 30
+
+    $drawButton.Add_Click({
+        Select-Challenge
+        $readyButton.Enabled = $true
+    })
+    $backButton.Add_Click({ $dialog.Close() })
+    $closePickerButton.Add_Click({ $dialog.Close() })
+    $readyButton.Add_Click({
+        if ($null -eq $script:selectedChallenge) { return }
+        $message = "Confirma o desafio {0}?`r`n`r`n{1}" -f $script:selectedChallenge.Title, $script:selectedChallenge.Rule
+        if (-not $script:selectedChallenge.Timed -and (Get-RemainingSeconds) -le 0) {
+            [void][System.Windows.Forms.MessageBox]::Show($dialog, 'Defina um tempo maior que zero no timer antes de aceitar este desafio.', 'Desafio de treino', 'OK', 'Warning')
+            return
+        }
+        if ($script:clock.IsRunning) {
+            $message += "`r`n`r`nO treino atual sera substituido e a contagem sera reiniciada."
+        }
+        if (-not (Confirm-ChallengeAction $message 'Pronto para o desafio?')) { return }
+        if ($script:selectedChallenge.Timed) {
+            $minutesInput.Value = $script:selectedChallenge.Minutes
+            $secondsInput.Value = $script:selectedChallenge.Seconds
+            $botsInput.Value = $script:selectedChallenge.Bots
+        }
+        $script:challengeSession = $script:selectedChallenge
+        $challengeButton.Text = 'DESAFIO'
+        [void]$toolTip.SetToolTip($challengeButton, 'Desafio em andamento: {0}. Clique para ver a regra ou abandonar.' -f $script:selectedChallenge.Title)
+        Reset-Timer
+        Set-CompactMode $true
+        $dialog.Close()
+        Start-Timer
+    })
+    try { [void]$dialog.ShowDialog($form) } finally { $dialog.Dispose() }
+}
+
+function Show-ActiveChallenge {
+    $challenge = $script:challengeSession
+    $time = if ($challenge.Timed) { 'Tempo: {0} minutos | Meta: {1} bots' -f $challenge.Minutes, $challenge.Bots } else { 'Tempo e meta definidos por voce antes de aceitar o desafio.' }
+    $message = "{0}`r`n`r`n{1}`r`n`r`n{2}`r`n`r`nDeseja abandonar o desafio?" -f $challenge.Title, $challenge.Rule, $time
+    if (Confirm-ChallengeAction $message 'Desafio em andamento') {
+        Abandon-Challenge
+        Restart-Timer -SkipChallengeConfirmation
+        $statusLabel.Text = 'DESAFIO ENCERRADO. PRONTO PARA TREINAR'
+    }
+}
+
+function Show-ChallengeMenu {
+    if ($null -eq $script:challengeSession) { Show-ChallengePicker } else { Show-ActiveChallenge }
+}
+
 # Arredonda os segundos restantes para cima e impede que o visor fique negativo.
 function Update-Display {
     $remaining = [Math]::Max(0, [Math]::Ceiling($script:duration - $script:clock.Elapsed.TotalSeconds))
@@ -1290,7 +1719,7 @@ $ticker.Add_Tick({
         $ticker.Stop()
         $script:clock.Stop()
         $script:finished = $true
-        $statusLabel.Text = 'TEMPO ESGOTADO'
+        $statusLabel.Text = if ($null -ne $script:challengeSession) { 'TEMPO ESGOTADO: {0}' -f $script:challengeSession.Title } else { 'TEMPO ESGOTADO' }
         $timeLabel.ForeColor = $accent
         $startButton.Text = 'INICIAR'
         try { Play-Alert } catch { Show-SoundError 'Nao foi possivel reproduzir o alerta. Confira o dispositivo de audio do Windows.' }
@@ -1302,13 +1731,17 @@ function Pause-Timer {
     if (-not $script:clock.IsRunning) { return }
     $script:clock.Stop()
     $ticker.Stop()
-    $statusLabel.Text = 'PAUSADO'
+    $statusLabel.Text = if ($null -ne $script:challengeSession) { 'PAUSADO: {0}' -f $script:challengeSession.Title } else { 'PAUSADO' }
     $startButton.Text = 'CONTINUAR'
     Update-Display
 }
 
 function Start-Timer {
     if ($script:clock.IsRunning) { return }
+    if ($script:finished -and $null -ne $script:challengeSession) {
+        if (-not (Confirm-ChallengeAction 'O tempo do desafio terminou. Encerrar este desafio e iniciar novamente?' 'Reiniciar desafio?')) { return }
+        Abandon-Challenge
+    }
     if ($script:finished) { Reset-Timer }
     if ($script:duration -le 0) {
         $statusLabel.Text = 'DEFINA UM TEMPO MAIOR QUE ZERO'
@@ -1317,7 +1750,7 @@ function Start-Timer {
     $minutesInput.Enabled = $false
     $secondsInput.Enabled = $false
     $botsInput.Enabled = $false
-    $statusLabel.Text = 'TREINO EM ANDAMENTO'
+    $statusLabel.Text = if ($null -ne $script:challengeSession) { 'DESAFIO: {0}' -f $script:challengeSession.Title } else { 'TREINO EM ANDAMENTO' }
     $startButton.Text = 'PAUSAR'
     if ($script:clock.ElapsedTicks -eq 0) {
         Set-CompactMode $true
@@ -1327,6 +1760,11 @@ function Start-Timer {
 }
 
 function Restart-Timer {
+    param([switch]$SkipChallengeConfirmation)
+    if ($null -ne $script:challengeSession -and -not $SkipChallengeConfirmation) {
+        if (-not (Confirm-ChallengeAction 'Abandonar o desafio atual e restaurar o treino normal?' 'Abandonar desafio?')) { return }
+        Abandon-Challenge
+    }
     $ticker.Stop()
     Reset-Timer
 }
@@ -1335,9 +1773,18 @@ $startButton.Add_Click({
     if ($script:clock.IsRunning) { Pause-Timer } else { Start-Timer }
 })
 $resetButton.Add_Click({ Restart-Timer })
-$minutesInput.Add_ValueChanged({ Reset-Timer })
-$secondsInput.Add_ValueChanged({ Reset-Timer })
-$botsInput.Add_ValueChanged({ Reset-Timer })
+$minutesInput.Add_ValueChanged({
+    if ($null -ne $script:challengeSession -and $script:challengeSession.Timed) { Abandon-Challenge }
+    Reset-Timer
+})
+$secondsInput.Add_ValueChanged({
+    if ($null -ne $script:challengeSession -and $script:challengeSession.Timed) { Abandon-Challenge }
+    Reset-Timer
+})
+$botsInput.Add_ValueChanged({
+    if ($null -ne $script:challengeSession -and $script:challengeSession.Timed) { Abandon-Challenge }
+    Reset-Timer
+})
 $randomButton.Add_Click({ Show-Randomizer })
 $hotkeyButton.Add_Click({ Show-HotkeySettings })
 $soundButton.Add_Click({ Show-SoundSettings })
@@ -1358,6 +1805,13 @@ $form.Add_Shown({
 })
 $compactButton.Add_Click({ Set-CompactMode (-not $script:compact) })
 $closeButton.Add_Click({ $form.Close() })
+$challengeButton.Add_Click({ Show-ChallengeMenu })
+$form.Add_FormClosing({
+    if ($null -ne $script:challengeSession -and $script:challengeControlsEnabled) {
+        $_.Cancel = -not (Confirm-ChallengeAction 'Fechar o aplicativo e encerrar o desafio atual?' 'Encerrar desafio?')
+    }
+    if (-not $_.Cancel) { Save-WindowSettings }
+})
 $form.Add_FormClosed({
     $ticker.Stop()
     $ticker.Dispose()
@@ -1379,6 +1833,7 @@ $form.Add_FormClosed({
     $compactBotsFont.Dispose()
     $minimalCloseFont.Dispose()
     $modeButtonFontNormal.Dispose()
+    foreach ($font in $script:scaledFonts) { $font.Dispose() }
     $modeButtonFontCompact.Dispose()
 })
 
@@ -1404,6 +1859,7 @@ foreach ($control in @($form, $brand, $timeLabel, $statusLabel, $botsLabel, $rul
 }
 
 # Reaplica o modo de interface guardado na ultima execucao.
+Load-WindowSettings
 Set-UIMode (Load-ThemeConfig)
 
 [void]$form.ShowDialog()

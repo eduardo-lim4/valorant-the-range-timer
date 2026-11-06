@@ -29,16 +29,40 @@ Os arquivos `RangeTimer.zip` e `RangeTimer-com-sorteio.zip` são pacotes antigos
 
 A meta de bots é apenas uma referência visual: o aplicativo não detecta eliminações nem se conecta ao jogo. O cronômetro termina quando o tempo chega a zero, independentemente da quantidade de bots eliminados.
 
+## Desafios aleatórios
+
+Clique em **Desafios**, na janela normal ou compacta, e use **Sortear desafio** para receber qualquer regra ou escolha uma das quatro categorias para um treino direcionado:
+
+- **Mira e crosshair:** Só headshot, em que eliminações sem headshot não contam; ou Flick, para treinar o giro rápido de câmera e o microajuste.
+- **Controle de arma:** Tap ou burst de no máximo 3 balas; ou Somente pistola, com Sheriff, Classic, Bandit ou Ghost.
+- **Movimento:** Counter-strafe obrigatório, sem atirar andando; ou Peek e recuo, voltando ao cover antes do próximo bot.
+- **Pressão de tempo:** eliminar 50 bots em 2 minutos ou 100 bots em 4 minutos.
+
+Sortear e visualizar uma regra não alteram o timer. Depois de escolher, clique em **Estou pronto** e confirme: somente então o desafio começa e a janela entra no modo compacto. Os desafios comuns usam o tempo e a meta já configurados; os desafios de pressão aplicam seus próprios valores somente após essa confirmação.
+
+**Pausar** preserva o desafio. **Reiniciar**, abandonar pelo botão **Desafio** ou fechar o aplicativo durante um desafio exige outra confirmação; ao recusar, o treino continua preservado. O aplicativo não detecta headshots, tiros, movimento ou eliminações: o cumprimento da regra é controlado pelo próprio jogador.
+
 ## Modos de interface
 
-A barra inferior permanece visível em todos os modos para alternar rapidamente entre **Padrão**, **Clean**, **Competitivo** e **Custom**:
+A barra inferior permanece visível em todos os modos para alternar rapidamente entre **Padrão**, **Competitivo** e **Custom**. O botão **Janela** também fica disponível nessa barra:
 
 - **Padrão** mantém a interface completa e as cores originais.
-- **Clean** torna o fundo transparente para deixar o jogo visível por trás. O visor e a meta ficam em placas sólidas para preservar a leitura.
 - **Competitivo** mostra apenas o cronômetro, a meta de bots, o botão de fechar e a barra de modos.
 - **Custom** permite definir as cores RGB do fundo e dos detalhes pelo botão **Cores**. A prévia atualiza enquanto você ajusta os valores; **Aplicar** confirma as cores.
 
-Nos temas personalizados, as cores do texto e da superfície, incluindo o painel e os controles do Spotify, acompanham automaticamente a luminosidade do fundo. O modo e as cores ficam salvos em `%LOCALAPPDATA%\RangeTimer\theme.json`. Clean e Competitivo usam as cores padrão; Custom é o modo que aplica a paleta escolhida.
+Nos temas personalizados, as cores do texto e da superfície, incluindo o painel e os controles do Spotify, acompanham automaticamente a luminosidade do fundo. O modo e as cores ficam salvos em `%LOCALAPPDATA%\RangeTimer\theme.json`. Competitivo usa as cores padrão; Custom é o modo que aplica a paleta escolhida. Se o antigo modo Clean estiver salvo, o aplicativo abre no Padrão.
+
+### Compartilhar um tema
+
+Em **Custom → Cores**, ajuste o fundo e os detalhes e clique em **Copiar código**. O código das duas cores vai para a área de transferência e pode ser enviado aos amigos, mesmo antes de aplicar a alteração. O formato é `#RRGGBB / #RRGGBB`, com o fundo primeiro e o detalhe depois; por exemplo, `#0F1E3C / #22D3EE`.
+
+Para importar, copie o código recebido, abra **Custom → Cores** e clique em **Colar código**. Confira a prévia e clique em **Aplicar** para salvar as cores, ou em **Cancelar** para mantê-las como estavam. O código compartilha somente as cores, não a opacidade nem o tamanho da janela.
+
+## Opacidade e tamanho da janela
+
+Clique em **Janela** para ajustar a opacidade de 30% a 100% e o tamanho proporcional de 80% a 150%. As mudanças aparecem na hora; clique em **Aplicar** para salvá-las ou em **Cancelar** para desfazê-las. A opacidade afeta toda a janela, incluindo texto e botões, e não apenas o fundo. A janela continua recebendo cliques.
+
+Arraste o timer para posicioná-lo. Ao fechá-lo, o aplicativo guarda posição, tamanho, opacidade e estado compacto em `%LOCALAPPDATA%\RangeTimer\window.json` e os restaura na próxima abertura. Se o monitor salvo não estiver mais disponível, a janela volta para uma área visível.
 
 ## Spotify
 
