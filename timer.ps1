@@ -89,7 +89,10 @@ $compactButton = Add-Button 'COMPACTO' 273 8 68 $background $muted
 $compactButton.Font = New-Object System.Drawing.Font($fontFamily, 7, [System.Drawing.FontStyle]::Bold)
 $closeButton = Add-Button 'X' 345 8 24 $background $muted
 $toolTip = New-Object System.Windows.Forms.ToolTip
-$toolTip.SetToolTip($compactButton, 'Alternar modo compacto')
+$toolTip.SetToolTip($randomButton, 'Sorteio: sortear agentes e armas para o treino')
+$toolTip.SetToolTip($hotkeyButton, 'Teclas: configurar os atalhos de teclado')
+$toolTip.SetToolTip($soundButton, 'Som: ajustar o volume e o alerta sonoro')
+$toolTip.SetToolTip($compactButton, 'Compacto: reduzir a janela sem interromper o timer')
 $rule = New-Object System.Windows.Forms.Panel
 $rule.Location = New-Object System.Drawing.Point(18, 43)
 $rule.Size = New-Object System.Drawing.Size(336, 2)
@@ -102,14 +105,14 @@ $botsLabel = Add-Label '100 BOTS' 246 70 108 25 12 $accent ([System.Drawing.Font
 $botsLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
 $musicButton = Add-Button 'MUSICA' 300 105 54 $background $muted
 $musicButton.Font = New-Object System.Drawing.Font($fontFamily, 8, [System.Drawing.FontStyle]::Bold)
-$toolTip.SetToolTip($musicButton, 'Mostrar ou ocultar o Spotify')
+$toolTip.SetToolTip($musicButton, 'Musica: mostrar ou ocultar o Spotify')
 
 $minutesLabel = Add-Label 'MINUTOS' 19 145 100 17 8 $muted ([System.Drawing.FontStyle]::Bold)
 $secondsLabel = Add-Label 'SEGUNDOS' 136 145 100 17 8 $muted ([System.Drawing.FontStyle]::Bold)
 $targetLabel = Add-Label 'META DE BOTS' 253 145 105 17 8 $muted ([System.Drawing.FontStyle]::Bold)
 $challengeButton = Add-Button 'DESAFIOS' 242 105 54 $background $muted
 $challengeButton.Font = New-Object System.Drawing.Font($fontFamily, 7, [System.Drawing.FontStyle]::Bold)
-[void]$toolTip.SetToolTip($challengeButton, 'Sortear um desafio de treino')
+[void]$toolTip.SetToolTip($challengeButton, 'Desafios: sortear um desafio de treino')
 $minutesInput = Add-Number 19 999 5
 $secondsInput = Add-Number 136 59 0
 $botsInput = Add-Number 253 9999 100
@@ -284,10 +287,10 @@ $windowSettingsButton = Add-ModeButton 'JANELA' 80 56
 $competitivoModeButton = Add-ModeButton 'COMPETITIVO' 140 92
 $customModeButton = Add-ModeButton 'CUSTOM' 236 72
 $coresButton = Add-ModeButton 'CORES' 312 52
-[void]$toolTip.SetToolTip($padraoModeButton, 'Aparencia padrao')
-[void]$toolTip.SetToolTip($windowSettingsButton, 'Ajustar opacidade e tamanho da janela')
-[void]$toolTip.SetToolTip($competitivoModeButton, 'Somente timer e meta de bots')
-[void]$toolTip.SetToolTip($customModeButton, 'Cores escolhidas por voce')
+[void]$toolTip.SetToolTip($padraoModeButton, 'Padrao: aparencia padrao')
+[void]$toolTip.SetToolTip($windowSettingsButton, 'Janela: ajustar opacidade e tamanho da janela')
+[void]$toolTip.SetToolTip($competitivoModeButton, 'Competitivo: somente timer e meta de bots')
+[void]$toolTip.SetToolTip($customModeButton, 'Custom: cores escolhidas por voce')
 [void]$toolTip.SetToolTip($coresButton, 'Escolher as cores personalizadas')
 $coresButton.Visible = $false
 $padraoModeButton.Add_Click({ Set-UIMode 'Padrao' })
@@ -309,6 +312,84 @@ function Shift-Color {
     $g = [int][Math]::Round($Color.G + ($Target.G - $Color.G) * $Amount)
     $b = [int][Math]::Round($Color.B + ($Target.B - $Color.B) * $Amount)
     return [System.Drawing.Color]::FromArgb($r, $g, $b)
+}
+
+# Os icones do painel principal sao repintados para combinar com a paleta atual.
+$script:uiIconSize = 0
+$script:uiIconButtons = @(
+    @{ Button = $challengeButton; File = 'challenge.png'; Name = 'DESAFIOS'; Normal = $null; Hover = $null; Hovered = $false },
+    @{ Button = $musicButton; File = 'spotify.png'; Name = 'MUSICA'; Normal = $null; Hover = $null; Hovered = $false },
+    @{ Button = $padraoModeButton; File = 'standard.png'; Name = 'PADRAO'; Normal = $null; Hover = $null; Hovered = $false },
+    @{ Button = $windowSettingsButton; File = 'window.png'; Name = 'JANELA'; Normal = $null; Hover = $null; Hovered = $false },
+    @{ Button = $competitivoModeButton; File = 'competitive.png'; Name = 'COMPETITIVO'; Normal = $null; Hover = $null; Hovered = $false },
+    @{ Button = $customModeButton; File = 'custom.png'; Name = 'CUSTOM'; Normal = $null; Hover = $null; Hovered = $false }
+)
+foreach ($entry in $script:uiIconButtons) {
+    $entry.Button.Tag = $entry
+    $entry.Button.AccessibleName = $entry.Name
+    $entry.Button.Add_MouseEnter({ $this.Tag.Hovered = $true; if ($this.Tag.Hover) { $this.Image = $this.Tag.Hover } })
+    $entry.Button.Add_MouseLeave({ $this.Tag.Hovered = $false; if ($this.Tag.Normal) { $this.Image = $this.Tag.Normal } })
+}
+
+function New-UIIcon {
+    param([string]$FileName, [System.Drawing.Color]$Color, [int]$Size)
+    $path = Join-Path (Join-Path $PSScriptRoot 'ui_icons') $FileName
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try {
+        $source = [System.Drawing.Image]::FromFile($path)
+        try {
+            $icon = New-Object System.Drawing.Bitmap $Size, $Size
+            $graphics = [System.Drawing.Graphics]::FromImage($icon)
+            try {
+                $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                $graphics.DrawImage($source, 0, 0, $Size, $Size)
+            } finally { $graphics.Dispose() }
+            for ($x = 0; $x -lt $Size; $x++) {
+                for ($y = 0; $y -lt $Size; $y++) {
+                    $pixel = $icon.GetPixel($x, $y)
+                    $alpha = [int]$pixel.A
+                    if ($FileName -eq 'spotify.png') {
+                        $brightness = [Math]::Max($pixel.R, [Math]::Max($pixel.G, $pixel.B))
+                        $alpha = if ($brightness -ge 190) { 0 } else { [int]($alpha * (190 - $brightness) / 190) }
+                    }
+                    $icon.SetPixel($x, $y, [System.Drawing.Color]::FromArgb($alpha, $Color))
+                }
+            }
+            return $icon
+        } finally { $source.Dispose() }
+    } catch { return $null }
+}
+
+function Update-UIIconTheme {
+    $size = [int][Math]::Round(18 * $script:windowScale / 100.0)
+    $script:uiIconSize = $size
+    foreach ($entry in $script:uiIconButtons) {
+        $button = $entry.Button
+        $normal = New-UIIcon $entry.File $button.ForeColor $size
+        $selected = ($button -eq $padraoModeButton -and $script:uiMode -eq 'Padrao') -or
+                    ($button -eq $competitivoModeButton -and $script:uiMode -eq 'Competitivo') -or
+                    ($button -eq $customModeButton -and $script:uiMode -eq 'Customizado')
+        $hoverColor = if ($selected) { Shift-Color $button.ForeColor $button.BackColor 0.25 } else { $script:foreground }
+        $hover = New-UIIcon $entry.File $hoverColor $size
+        $previousNormal = $entry.Normal
+        $previousHover = $entry.Hover
+        if ($null -ne $normal -and $null -ne $hover) {
+            $entry.Normal = $normal
+            $entry.Hover = $hover
+            $button.Text = ''
+            $button.Image = if ($entry.Hovered) { $hover } else { $normal }
+        } else {
+            if ($null -ne $normal) { $normal.Dispose() }
+            if ($null -ne $hover) { $hover.Dispose() }
+            $entry.Normal = $null
+            $entry.Hover = $null
+            $button.Image = $null
+            $button.Text = $entry.Name
+        }
+        $button.FlatAppearance.MouseOverBackColor = $button.BackColor
+        if ($null -ne $previousNormal) { $previousNormal.Dispose() }
+        if ($null -ne $previousHover) { $previousHover.Dispose() }
+    }
 }
 
 # Recria os icones do Spotify com as cores do tema atual.
@@ -378,6 +459,7 @@ function Update-ThemeColors {
         }
     }
     Update-MusicIconTheme
+    Update-UIIconTheme
 }
 
 # Define toda a paleta a partir do fundo e da cor de detalhe escolhida.
@@ -970,6 +1052,7 @@ function Set-Layout {
             $soundButton.Location = New-Object System.Drawing.Point(154, 8)
             $soundButton.Size = New-Object System.Drawing.Size(36, 33)
             $compactButton.Text = 'ABRIR'
+            $toolTip.SetToolTip($compactButton, 'Abrir: voltar a janela completa sem interromper o timer')
             $compactButton.Location = New-Object System.Drawing.Point(190, 8)
             $compactButton.Size = New-Object System.Drawing.Size(47, 33)
             $closeButton.Location = New-Object System.Drawing.Point(237, 8)
@@ -1003,6 +1086,7 @@ function Set-Layout {
             $soundButton.Location = New-Object System.Drawing.Point(233, 8)
             $soundButton.Size = New-Object System.Drawing.Size(40, 33)
             $compactButton.Text = 'COMPACTO'
+            $toolTip.SetToolTip($compactButton, 'Compacto: reduzir a janela sem interromper o timer')
             $compactButton.Location = New-Object System.Drawing.Point(273, 8)
             $compactButton.Size = New-Object System.Drawing.Size(68, 33)
             $closeButton.Location = New-Object System.Drawing.Point(345, 8)
@@ -1049,6 +1133,7 @@ function Set-Layout {
     }
 
     Apply-WindowControlScale
+    if ($script:uiIconSize -ne [int][Math]::Round(18 * $script:windowScale / 100.0)) { Update-UIIconTheme }
 
     # Mantem a janela dentro da area de trabalho apos o redimensionamento.
     $workingArea = [System.Windows.Forms.Screen]::FromRectangle($form.Bounds).WorkingArea
@@ -1556,8 +1641,8 @@ function Update-ChallengeStatus {
 
 function Abandon-Challenge {
     $script:challengeSession = $null
-    $challengeButton.Text = 'DESAFIOS'
-    [void]$toolTip.SetToolTip($challengeButton, 'Sortear um desafio de treino')
+    if ($null -eq $challengeButton.Image) { $challengeButton.Text = 'DESAFIOS' }
+    [void]$toolTip.SetToolTip($challengeButton, 'Desafios: sortear um desafio de treino')
 }
 
 function Show-ChallengePicker {
@@ -1662,8 +1747,8 @@ function Show-ChallengePicker {
             $botsInput.Value = $script:selectedChallenge.Bots
         }
         $script:challengeSession = $script:selectedChallenge
-        $challengeButton.Text = 'DESAFIO'
-        [void]$toolTip.SetToolTip($challengeButton, 'Desafio em andamento: {0}. Clique para ver a regra ou abandonar.' -f $script:selectedChallenge.Title)
+        if ($null -eq $challengeButton.Image) { $challengeButton.Text = 'DESAFIO' }
+        [void]$toolTip.SetToolTip($challengeButton, 'Desafios: desafio em andamento: {0}. Clique para ver a regra ou abandonar.' -f $script:selectedChallenge.Title)
         Reset-Timer
         Set-CompactMode $true
         $dialog.Close()
@@ -1820,6 +1905,11 @@ $form.Add_FormClosed({
     if ($null -ne $script:spotify) { Reset-SpotifySession $script:spotify }
     if ($null -ne $musicCover.Image) { $musicCover.Image.Dispose(); $musicCover.Image = $null }
     foreach ($icon in $script:musicIconImages) { if ($null -ne $icon) { $icon.Dispose() } }
+    foreach ($entry in $script:uiIconButtons) {
+        $entry.Button.Image = $null
+        if ($null -ne $entry.Normal) { $entry.Normal.Dispose() }
+        if ($null -ne $entry.Hover) { $entry.Hover.Dispose() }
+    }
     $script:clock.Stop()
     $script:hotkeys.Dispose()
     if ($null -ne $script:soundPlayer) {

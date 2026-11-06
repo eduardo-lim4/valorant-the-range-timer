@@ -8,7 +8,7 @@ Um cronômetro regressivo para treinar no The Range do VALORANT. A janela fica s
 
 1. Na página do repositório, clique em **Code** e depois em **Download ZIP**.
 2. Extraia o ZIP baixado e abra a pasta extraída. Não execute os arquivos diretamente de dentro do ZIP.
-3. Dê dois cliques em **Iniciar Range Timer.bat**. Mantenha `timer.ps1`, `RangeAudio.cs`, `RangeHotkeys.cs`, `RangeSpotify.ps1` e as pastas `images` e `spotify_overlay` juntos, na mesma pasta.
+3. Dê dois cliques em **Iniciar Range Timer.bat**. Mantenha `timer.ps1`, `RangeAudio.cs`, `RangeHotkeys.cs`, `RangeSpotify.ps1` e as pastas `images`, `spotify_overlay` e `ui_icons` juntos, na mesma pasta.
 
 Se preferir usar Git, clone o repositório e execute o mesmo arquivo `.bat` dentro da pasta criada:
 
@@ -44,7 +44,7 @@ Sortear e visualizar uma regra não alteram o timer. Depois de escolher, clique 
 
 ## Modos de interface
 
-A barra inferior permanece visível em todos os modos para alternar rapidamente entre **Padrão**, **Competitivo** e **Custom**. O botão **Janela** também fica disponível nessa barra:
+A barra inferior permanece visível em todos os modos para alternar rapidamente entre **Padrão**, **Competitivo** e **Custom**. O botão **Janela** também fica disponível nessa barra. Os ícones do painel principal mudam de cor ao passar o mouse; mantenha o cursor sobre um deles para ver seu nome e descrição. Se algum arquivo de `ui_icons` estiver ausente, o botão correspondente continuará disponível com texto:
 
 - **Padrão** mantém a interface completa e as cores originais.
 - **Competitivo** mostra apenas o cronômetro, a meta de bots, o botão de fechar e a barra de modos.
