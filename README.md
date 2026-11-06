@@ -8,7 +8,7 @@ Um cronômetro regressivo para treinar no The Range do VALORANT. A janela fica s
 
 1. Na página do repositório, clique em **Code** e depois em **Download ZIP**.
 2. Extraia o ZIP baixado e abra a pasta extraída. Não execute os arquivos diretamente de dentro do ZIP.
-3. Dê dois cliques em **Iniciar Range Timer.bat**. Mantenha `timer.ps1`, `RangeAudio.cs`, `RangeHotkeys.cs`, `RangeSpotify.ps1` e a pasta `images` juntos, na mesma pasta.
+3. Dê dois cliques em **Iniciar Range Timer.bat**. Mantenha `timer.ps1`, `RangeAudio.cs`, `RangeHotkeys.cs`, `RangeSpotify.ps1` e as pastas `images` e `spotify_overlay` juntos, na mesma pasta.
 
 Se preferir usar Git, clone o repositório e execute o mesmo arquivo `.bat` dentro da pasta criada:
 
@@ -31,7 +31,7 @@ A meta de bots é apenas uma referência visual: o aplicativo não detecta elimi
 
 ## Spotify
 
-Abra o aplicativo Spotify para Windows e comece a tocar uma música. Clique em **Música** no timer, mesmo no modo compacto, para mostrar ou ocultar o painel com título, artista, capa, progresso e os botões de reprodução, faixa anterior e próxima. A barra mostra o progresso, mas não permite avançar para um ponto da música. O timer continua funcionando normalmente.
+Abra o aplicativo Spotify para Windows e comece a tocar uma música. Clique em **Música** no timer, mesmo no modo compacto, para mostrar ou ocultar o painel com título, artista, capa, progresso e os botões de reprodução, faixa anterior e próxima. Os botões usam os ícones da pasta `spotify_overlay`, repintados nas cores do tema; desabilitados, eles aparecem apagados. Sem esses arquivos, os botões continuam funcionando com texto. A barra mostra o progresso, mas não permite avançar para um ponto da música. O timer continua funcionando normalmente.
 
 O painel usa a sessão de mídia disponibilizada pelo próprio Windows; não precisa de senha, chave de API ou configuração de conta. É necessário Windows 10 versão 1809 ou mais recente, ou Windows 11. A integração depende dos dados e controles que o Spotify disponibiliza ao Windows: se uma capa, duração ou comando não estiver disponível, o painel não conseguirá exibi-lo ou utilizá-lo. O Spotify no navegador e a reprodução em outros dispositivos não são garantidos. Se nada aparecer, abra o Spotify no computador e inicie uma faixa.
 

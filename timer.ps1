@@ -181,9 +181,63 @@ $musicProgress.Size = New-Object System.Drawing.Size(180, 7)
 $musicProgress.Maximum = 1000
 $musicPanel.Controls.Add($musicProgress)
 $musicTime = Add-MusicLabel '--:-- / --:--' 72 82 180 18 8 $muted
+# Carrega um icone da pasta spotify_overlay, redimensiona e repinta na cor pedida,
+# preservando a transparencia original do arquivo.
+function New-MusicIcon {
+    param([string]$FileName, [System.Drawing.Color]$Color)
+    $path = Join-Path (Join-Path $PSScriptRoot 'spotify_overlay') $FileName
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try {
+        $source = [System.Drawing.Image]::FromFile($path)
+        try {
+            $icon = New-Object System.Drawing.Bitmap 22, 22
+            $graphics = [System.Drawing.Graphics]::FromImage($icon)
+            try {
+                $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                $graphics.DrawImage($source, 0, 0, 22, 22)
+            } finally { $graphics.Dispose() }
+            for ($x = 0; $x -lt 22; $x++) {
+                for ($y = 0; $y -lt 22; $y++) {
+                    $pixel = $icon.GetPixel($x, $y)
+                    if ($pixel.A -gt 0) { $icon.SetPixel($x, $y, [System.Drawing.Color]::FromArgb($pixel.A, $Color)) }
+                }
+            }
+            return $icon
+        } finally { $source.Dispose() }
+    } catch { return $null }
+}
+
+# Aplica o icone ao botao e alterna entre as versoes clara e apagada conforme o estado.
+function Set-MusicButtonIcon {
+    param($Button, $OnIcon, $OffIcon)
+    if ($null -eq $OnIcon -or $null -eq $OffIcon) { return }
+    $Button.Text = ''
+    $Button.Image = $OnIcon
+    $Button.Tag = @{ On = $OnIcon; Off = $OffIcon }
+    $Button.Add_EnabledChanged({
+        $icons = $this.Tag
+        if ($icons) { $this.Image = if ($this.Enabled) { $icons.On } else { $icons.Off } }
+    })
+}
+
 $previousTrack = Add-MusicButton 'ANTERIOR' 10 76
 $playTrack = Add-MusicButton 'PLAY' 94 76
 $nextTrack = Add-MusicButton 'PROXIMA' 178 76
+[void]$toolTip.SetToolTip($previousTrack, 'Faixa anterior')
+[void]$toolTip.SetToolTip($playTrack, 'Tocar ou pausar')
+[void]$toolTip.SetToolTip($nextTrack, 'Proxima faixa')
+# Sem os arquivos de icone os botoes continuam com texto, garantindo o funcionamento.
+$previousTrack.AccessibleName = 'ANTERIOR'
+$playTrack.AccessibleName = 'PLAY'
+$nextTrack.AccessibleName = 'PROXIMA'
+$script:musicIconImages = @(
+    (New-MusicIcon 'backward.png' $foreground), (New-MusicIcon 'backward.png' $muted),
+    (New-MusicIcon 'play-pause.png' $foreground), (New-MusicIcon 'play-pause.png' $muted),
+    (New-MusicIcon 'forward.png' $foreground), (New-MusicIcon 'forward.png' $muted)
+)
+Set-MusicButtonIcon $previousTrack $script:musicIconImages[0] $script:musicIconImages[1]
+Set-MusicButtonIcon $playTrack $script:musicIconImages[2] $script:musicIconImages[3]
+Set-MusicButtonIcon $nextTrack $script:musicIconImages[4] $script:musicIconImages[5]
 $musicTimer = New-Object System.Windows.Forms.Timer
 $musicTimer.Interval = 500
 
@@ -703,7 +757,9 @@ function Update-MusicPanel {
     $state = $script:spotify
     $previousTrack.Enabled = ($null -ne $state.Session -and $state.CanPrevious -and $null -eq $state.CommandTask)
     $nextTrack.Enabled = ($null -ne $state.Session -and $state.CanNext -and $null -eq $state.CommandTask)
-    $playTrack.Text = if ($state.Playing) { 'PAUSAR' } else { 'PLAY' }
+    # Com icones o rotulo fica apenas no nome acessivel; sem icones o texto continua.
+    if ($null -eq $playTrack.Image) { $playTrack.Text = if ($state.Playing) { 'PAUSAR' } else { 'PLAY' } }
+    $playTrack.AccessibleName = if ($state.Playing) { 'PAUSAR' } else { 'PLAY' }
     $playTrack.Enabled = ($null -ne $state.Session -and $null -eq $state.CommandTask -and (($state.Playing -and $state.CanPause) -or (-not $state.Playing -and $state.CanPlay)))
     if (-not $state.Available) {
         $musicTitle.Text = 'Spotify indisponivel'
@@ -863,6 +919,7 @@ $form.Add_FormClosed({
     $musicTimer.Dispose()
     if ($null -ne $script:spotify) { Reset-SpotifySession $script:spotify }
     if ($null -ne $musicCover.Image) { $musicCover.Image.Dispose(); $musicCover.Image = $null }
+    foreach ($icon in $script:musicIconImages) { if ($null -ne $icon) { $icon.Dispose() } }
     $script:clock.Stop()
     $script:hotkeys.Dispose()
     if ($null -ne $script:soundPlayer) {
