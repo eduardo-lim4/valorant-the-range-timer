@@ -101,6 +101,9 @@ $form.Controls.Add($rule)
 
 $timeLabel = Add-Label '05:00' 15 51 220 58 34 $foreground ([System.Drawing.FontStyle]::Bold)
 $statusLabel = Add-Label 'PRONTO PARA TREINAR' 20 111 220 19 8 $muted ([System.Drawing.FontStyle]::Bold)
+$statusLabel.AutoEllipsis = $true
+$toolTip.SetToolTip($statusLabel, $statusLabel.Text)
+$statusLabel.Add_TextChanged({ $toolTip.SetToolTip($this, $this.Text) })
 $botsLabel = Add-Label '100 BOTS' 246 70 108 25 12 $accent ([System.Drawing.FontStyle]::Bold)
 $botsLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
 $musicButton = Add-Button 'MUSICA' 300 105 54 $background $muted
@@ -299,12 +302,6 @@ $competitivoModeButton.Add_Click({ Set-UIMode 'Competitivo' })
 $customModeButton.Add_Click({ Set-UIMode 'Customizado' })
 $coresButton.Add_Click({ Show-ColorSettings })
 
-# Calcula o brilho de uma cor para decidir se o texto deve ser claro ou escuro.
-function Get-ColorLuminance {
-    param([System.Drawing.Color]$Color)
-    return (0.2126 * $Color.R + 0.7152 * $Color.G + 0.0722 * $Color.B) / 255
-}
-
 # Mistura uma cor na direcao de outra para derivar a superficie do tema.
 function Shift-Color {
     param([System.Drawing.Color]$Color, [System.Drawing.Color]$Target, [double]$Amount)
@@ -312,6 +309,46 @@ function Shift-Color {
     $g = [int][Math]::Round($Color.G + ($Target.G - $Color.G) * $Amount)
     $b = [int][Math]::Round($Color.B + ($Target.B - $Color.B) * $Amount)
     return [System.Drawing.Color]::FromArgb($r, $g, $b)
+}
+
+# Ajusta apenas a cor de textos que nao contrastam com o fundo escolhido.
+function Get-ContrastLuminance {
+    param([System.Drawing.Color]$Color)
+    $channels = @($Color.R, $Color.G, $Color.B) | ForEach-Object {
+        $channel = $_ / 255.0
+        if ($channel -le 0.04045) { $channel / 12.92 } else { [Math]::Pow(($channel + 0.055) / 1.055, 2.4) }
+    }
+    return 0.2126 * $channels[0] + 0.7152 * $channels[1] + 0.0722 * $channels[2]
+}
+
+function Get-ContrastRatio {
+    param([System.Drawing.Color]$First, [System.Drawing.Color]$Second)
+    $firstLuminance = Get-ContrastLuminance $First
+    $secondLuminance = Get-ContrastLuminance $Second
+    return ([Math]::Max($firstLuminance, $secondLuminance) + 0.05) / ([Math]::Min($firstLuminance, $secondLuminance) + 0.05)
+}
+
+function Get-ReadableForeground {
+    param([System.Drawing.Color]$BackgroundColor)
+    $dark = [System.Drawing.Color]::FromArgb(24, 24, 24)
+    $light = [System.Drawing.Color]::FromArgb(245, 245, 245)
+    $chosen = if ((Get-ContrastRatio $dark $BackgroundColor) -ge (Get-ContrastRatio $light $BackgroundColor)) { $dark } else { $light }
+    if ((Get-ContrastRatio $chosen $BackgroundColor) -ge 4.5) { return $chosen }
+    if ((Get-ContrastRatio ([System.Drawing.Color]::Black) $BackgroundColor) -ge (Get-ContrastRatio ([System.Drawing.Color]::White) $BackgroundColor)) { return [System.Drawing.Color]::Black }
+    return [System.Drawing.Color]::White
+}
+
+function Get-ReadableAccent {
+    param([System.Drawing.Color]$AccentColor, [System.Drawing.Color]$BackgroundColor)
+    if ((Get-ContrastRatio $AccentColor $BackgroundColor) -ge 4.5) { return $AccentColor }
+    $target = if ((Get-ContrastRatio ([System.Drawing.Color]::Black) $BackgroundColor) -ge (Get-ContrastRatio ([System.Drawing.Color]::White) $BackgroundColor)) { [System.Drawing.Color]::Black } else { [System.Drawing.Color]::White }
+    $low = 0.0
+    $high = 1.0
+    for ($step = 0; $step -lt 12; $step++) {
+        $middle = ($low + $high) / 2
+        if ((Get-ContrastRatio (Shift-Color $AccentColor $target $middle) $BackgroundColor) -ge 4.5) { $high = $middle } else { $low = $middle }
+    }
+    return Shift-Color $AccentColor $target $high
 }
 
 # Os icones do painel principal sao repintados para combinar com a paleta atual.
@@ -413,9 +450,9 @@ function Update-ThemeColors {
     $form.TransparencyKey = [System.Drawing.Color]::Empty
     $rule.BackColor = $script:accent
     $brand.ForeColor = $script:foreground
-    $timeLabel.ForeColor = if ($script:finished) { $script:accent } else { $script:foreground }
+    $timeLabel.ForeColor = if ($script:finished) { $script:accentInk } else { $script:foreground }
     $statusLabel.ForeColor = $script:muted
-    $botsLabel.ForeColor = $script:accent
+    $botsLabel.ForeColor = $script:accentInk
     foreach ($label in @($minutesLabel, $secondsLabel, $targetLabel)) { $label.ForeColor = $script:muted }
     $chipColor = $script:background
     $timeLabel.BackColor = $chipColor
@@ -435,10 +472,10 @@ function Update-ThemeColors {
     }
     $musicPanel.BackColor = $script:surface
     $musicCover.BackColor = $chipColor
-    $musicHeaderLabel.ForeColor = $script:accent
+    $musicHeaderLabel.ForeColor = Get-ReadableAccent $script:accent $script:surface
     $musicTitle.ForeColor = $script:foreground
-    $musicArtist.ForeColor = $script:muted
-    $musicTime.ForeColor = $script:muted
+    $musicArtist.ForeColor = Get-ReadableAccent $script:muted $script:surface
+    $musicTime.ForeColor = $musicArtist.ForeColor
     foreach ($button in @($previousTrack, $playTrack, $nextTrack)) { $button.BackColor = $solidBg }
     $modeBar.BackColor = $script:background
     foreach ($button in @($coresButton, $windowSettingsButton)) {
@@ -467,6 +504,7 @@ function Set-ThemeColors {
     param([System.Drawing.Color]$Background, [System.Drawing.Color]$Accent)
     $script:background = $Background
     $script:accent = $Accent
+    $script:accentInk = Get-ReadableAccent $Accent $Background
     if ($Background -eq $defaultBackground -and $Accent -eq $defaultAccent) {
         # Paleta original do aplicativo, mantida intacta no modo Padrao.
         $script:surface = [System.Drawing.Color]::FromArgb(28, 37, 47)
@@ -475,17 +513,18 @@ function Set-ThemeColors {
         $script:accentText = $script:foreground
     } else {
         # Cores personalizadas: o texto acompanha a tonalidade clara ou escura do fundo.
-        $light = (Get-ColorLuminance $Background) -ge 0.5
+        $script:foreground = Get-ReadableForeground $Background
+        $light = (Get-ContrastRatio ([System.Drawing.Color]::Black) $Background) -ge (Get-ContrastRatio ([System.Drawing.Color]::White) $Background)
         if ($light) {
-            $script:foreground = [System.Drawing.Color]::FromArgb(24, 24, 24)
             $script:muted = [System.Drawing.Color]::FromArgb(92, 92, 92)
             $script:surface = Shift-Color $Background ([System.Drawing.Color]::Black) 0.12
         } else {
-            $script:foreground = [System.Drawing.Color]::FromArgb(240, 240, 240)
             $script:muted = [System.Drawing.Color]::FromArgb(160, 160, 160)
             $script:surface = Shift-Color $Background ([System.Drawing.Color]::White) 0.10
         }
-        $script:accentText = if ((Get-ColorLuminance $Accent) -ge 0.5) { [System.Drawing.Color]::FromArgb(24, 24, 24) } else { [System.Drawing.Color]::FromArgb(245, 245, 245) }
+        $script:surface = Get-ReadableAccent $script:surface $script:foreground
+        $script:muted = Get-ReadableAccent $script:muted $Background
+        $script:accentText = Get-ReadableForeground $Accent
     }
     Update-ThemeColors
 }
@@ -639,6 +678,7 @@ function Show-SoundSettings {
     $importButton = Add-SoundButton 'IMPORTAR WAV' 18 145 144 $surface
     $defaultButton = Add-SoundButton 'SOM PADRAO' 170 145 152 $surface
     $previewButton = Add-SoundButton 'TESTAR SOM' 18 188 144 $accent
+    $previewButton.ForeColor = $accentText
     $doneButton = Add-SoundButton 'FECHAR' 170 188 152 $surface
 
     $importButton.Add_Click({
@@ -793,7 +833,7 @@ function Show-HotkeySettings {
     $done.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $done.FlatAppearance.BorderSize = 0
     $done.BackColor = $accent
-    $done.ForeColor = $foreground
+    $done.ForeColor = $accentText
     $done.Cursor = [System.Windows.Forms.Cursors]::Hand
     $done.Add_Click({ $dialog.Close() })
     $dialog.Controls.Add($done)
@@ -890,8 +930,8 @@ function Show-Randomizer {
         }
     }
 
-    [void](Add-DrawLabel 'AGENTE' 18 12 180 24 $accent)
-    [void](Add-DrawLabel 'ARMA' 212 12 180 24 $accent)
+    [void](Add-DrawLabel 'AGENTE' 18 12 180 24 $accentInk)
+    [void](Add-DrawLabel 'ARMA' 212 12 180 24 $accentInk)
     $agentPicture = New-Object System.Windows.Forms.PictureBox
     $agentPicture.Location = New-Object System.Drawing.Point(18, 42)
     $agentPicture.Size = New-Object System.Drawing.Size(180, 150)
@@ -910,6 +950,7 @@ function Show-Randomizer {
     $drawAgent = Add-DrawButton 'SORTEAR AGENTE' 18 228 180 $surface
     $drawWeapon = Add-DrawButton 'SORTEAR ARMA' 212 228 180 $surface
     $drawBoth = Add-DrawButton 'SORTEAR AMBOS' 18 280 180 $accent
+    $drawBoth.ForeColor = $accentText
     $done = Add-DrawButton 'FECHAR' 212 280 180 $surface
     if ($agents.Count -eq 0) { $agentName.Text = 'Nenhum agente encontrado'; $drawAgent.Enabled = $false }
     if ($weapons.Count -eq 0) { $weaponName.Text = 'Nenhuma arma encontrada'; $drawWeapon.Enabled = $false }
@@ -1413,13 +1454,11 @@ function Show-ColorSettings {
         $chosenAccent = [System.Drawing.Color]::FromArgb([int]$acRed.Value, [int]$acGreen.Value, [int]$acBlue.Value)
         $previewPanel.BackColor = $chosenBackground
         $previewSwatch.BackColor = $chosenAccent
-        $previewBots.ForeColor = $chosenAccent
+        $previewBots.ForeColor = Get-ReadableAccent $chosenAccent $chosenBackground
         if ($chosenBackground -eq $defaultBackground -and $chosenAccent -eq $defaultAccent) {
             $previewTime.ForeColor = [System.Drawing.Color]::FromArgb(236, 232, 225)
-        } elseif ((Get-ColorLuminance $chosenBackground) -ge 0.5) {
-            $previewTime.ForeColor = [System.Drawing.Color]::FromArgb(24, 24, 24)
         } else {
-            $previewTime.ForeColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+            $previewTime.ForeColor = Get-ReadableForeground $chosenBackground
         }
     }
 
@@ -1805,7 +1844,7 @@ $ticker.Add_Tick({
         $script:clock.Stop()
         $script:finished = $true
         $statusLabel.Text = if ($null -ne $script:challengeSession) { 'TEMPO ESGOTADO: {0}' -f $script:challengeSession.Title } else { 'TEMPO ESGOTADO' }
-        $timeLabel.ForeColor = $accent
+        $timeLabel.ForeColor = $accentInk
         $startButton.Text = 'INICIAR'
         try { Play-Alert } catch { Show-SoundError 'Nao foi possivel reproduzir o alerta. Confira o dispositivo de audio do Windows.' }
     }

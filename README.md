@@ -50,7 +50,7 @@ A barra inferior permanece visível em todos os modos para alternar rapidamente 
 - **Competitivo** mostra apenas o cronômetro, a meta de bots, o botão de fechar e a barra de modos.
 - **Custom** permite definir as cores RGB do fundo e dos detalhes pelo botão **Cores**. A prévia atualiza enquanto você ajusta os valores; **Aplicar** confirma as cores.
 
-Nos temas personalizados, as cores do texto e da superfície, incluindo o painel e os controles do Spotify, acompanham automaticamente a luminosidade do fundo. O modo e as cores ficam salvos em `%LOCALAPPDATA%\RangeTimer\theme.json`. Competitivo usa as cores padrão; Custom é o modo que aplica a paleta escolhida. Se o antigo modo Clean estiver salvo, o aplicativo abre no Padrão.
+Nos temas personalizados, as cores do texto e da superfície, incluindo o painel e os controles do Spotify, acompanham automaticamente a luminosidade do fundo. Quando necessário para a leitura, o texto que usa a cor de detalhe recebe um tom com mais contraste; a cor escolhida é preservada nos botões e no código compartilhado. O modo e as cores ficam salvos em `%LOCALAPPDATA%\RangeTimer\theme.json`. Competitivo usa as cores padrão; Custom é o modo que aplica a paleta escolhida. Se o antigo modo Clean estiver salvo, o aplicativo abre no Padrão.
 
 ### Compartilhar um tema
 
