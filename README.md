@@ -29,6 +29,17 @@ Os arquivos `RangeTimer.zip` e `RangeTimer-com-sorteio.zip` são pacotes antigos
 
 A meta de bots é apenas uma referência visual: o aplicativo não detecta eliminações nem se conecta ao jogo. O cronômetro termina quando o tempo chega a zero, independentemente da quantidade de bots eliminados.
 
+## Modos de interface
+
+A barra inferior permanece visível em todos os modos para alternar rapidamente entre **Padrão**, **Clean**, **Competitivo** e **Custom**:
+
+- **Padrão** mantém a interface completa e as cores originais.
+- **Clean** torna o fundo transparente para deixar o jogo visível por trás. O visor e a meta ficam em placas sólidas para preservar a leitura.
+- **Competitivo** mostra apenas o cronômetro, a meta de bots, o botão de fechar e a barra de modos.
+- **Custom** permite definir as cores RGB do fundo e dos detalhes pelo botão **Cores**. A prévia atualiza enquanto você ajusta os valores; **Aplicar** confirma as cores.
+
+Nos temas personalizados, as cores do texto e da superfície, incluindo o painel e os controles do Spotify, acompanham automaticamente a luminosidade do fundo. O modo e as cores ficam salvos em `%LOCALAPPDATA%\RangeTimer\theme.json`. Clean e Competitivo usam as cores padrão; Custom é o modo que aplica a paleta escolhida.
+
 ## Spotify
 
 Abra o aplicativo Spotify para Windows e comece a tocar uma música. Clique em **Música** no timer, mesmo no modo compacto, para mostrar ou ocultar o painel com título, artista, capa, progresso e os botões de reprodução, faixa anterior e próxima. Os botões usam os ícones da pasta `spotify_overlay`, repintados nas cores do tema; desabilitados, eles aparecem apagados. Sem esses arquivos, os botões continuam funcionando com texto. A barra mostra o progresso, mas não permite avançar para um ponto da música. O timer continua funcionando normalmente.

@@ -8,11 +8,14 @@ Add-Type -Path (Join-Path $PSScriptRoot 'RangeHotkeys.cs') -ReferencedAssemblies
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 # Define as cores e a fonte usadas em toda a interface.
-$background = [System.Drawing.Color]::FromArgb(16, 23, 31)
+# A paleta padrao e fixa; os modos de interface re aplicam as cores depois da criacao.
+$defaultBackground = [System.Drawing.Color]::FromArgb(16, 23, 31)
+$defaultAccent = [System.Drawing.Color]::FromArgb(255, 70, 85)
+$background = $defaultBackground
 $surface = [System.Drawing.Color]::FromArgb(28, 37, 47)
 $foreground = [System.Drawing.Color]::FromArgb(236, 232, 225)
 $muted = [System.Drawing.Color]::FromArgb(151, 162, 171)
-$accent = [System.Drawing.Color]::FromArgb(255, 70, 85)
+$accent = $defaultAccent
 $fontFamily = 'Segoe UI'
 
 # Cria a janela sem bordas, sempre no topo e no canto superior direito.
@@ -126,6 +129,8 @@ $regularBrandFont = $brand.Font
 $compactBrandFont = New-Object System.Drawing.Font($fontFamily, 8, [System.Drawing.FontStyle]::Bold)
 $compactTimeFont = New-Object System.Drawing.Font($fontFamily, 26, [System.Drawing.FontStyle]::Bold)
 $compactBotsFont = New-Object System.Drawing.Font($fontFamily, 9, [System.Drawing.FontStyle]::Bold)
+$regularCloseFont = $closeButton.Font
+$minimalCloseFont = New-Object System.Drawing.Font($fontFamily, 7, [System.Drawing.FontStyle]::Bold)
 $settingsControls = @($minutesLabel, $secondsLabel, $targetLabel, $minutesInput, $secondsInput, $botsInput, $startButton, $resetButton)
 
 # O painel de música é opcional e permanece disponível também no modo compacto.
@@ -166,7 +171,7 @@ function Add-MusicButton {
     $musicPanel.Controls.Add($button)
     return $button
 }
-[void](Add-MusicLabel 'TOCANDO AGORA / SPOTIFY' 10 5 240 18 8 $accent)
+$musicHeaderLabel = Add-MusicLabel 'TOCANDO AGORA / SPOTIFY' 10 5 240 18 8 $accent
 $musicCover = New-Object System.Windows.Forms.PictureBox
 $musicCover.Location = New-Object System.Drawing.Point(10, 27)
 $musicCover.Size = New-Object System.Drawing.Size(54, 54)
@@ -207,17 +212,13 @@ function New-MusicIcon {
     } catch { return $null }
 }
 
-# Aplica o icone ao botao e alterna entre as versoes clara e apagada conforme o estado.
+# Aplica o icone ao botao e guarda as duas versoes para alternar conforme o estado.
 function Set-MusicButtonIcon {
     param($Button, $OnIcon, $OffIcon)
     if ($null -eq $OnIcon -or $null -eq $OffIcon) { return }
     $Button.Text = ''
-    $Button.Image = $OnIcon
+    $Button.Image = if ($Button.Enabled) { $OnIcon } else { $OffIcon }
     $Button.Tag = @{ On = $OnIcon; Off = $OffIcon }
-    $Button.Add_EnabledChanged({
-        $icons = $this.Tag
-        if ($icons) { $this.Image = if ($this.Enabled) { $icons.On } else { $icons.Off } }
-    })
 }
 
 $previousTrack = Add-MusicButton 'ANTERIOR' 10 76
@@ -238,6 +239,170 @@ $script:musicIconImages = @(
 Set-MusicButtonIcon $previousTrack $script:musicIconImages[0] $script:musicIconImages[1]
 Set-MusicButtonIcon $playTrack $script:musicIconImages[2] $script:musicIconImages[3]
 Set-MusicButtonIcon $nextTrack $script:musicIconImages[4] $script:musicIconImages[5]
+# A troca entre icone claro e apagado acompanha o estado do botao.
+foreach ($button in @($previousTrack, $playTrack, $nextTrack)) {
+    $button.Add_EnabledChanged({
+        $icons = $this.Tag
+        if ($icons) { $this.Image = if ($this.Enabled) { $icons.On } else { $icons.Off } }
+    })
+}
+
+# A barra de modos fica sempre visivel, inclusive no modo competitivo, para permitir voltar ao padrao.
+$script:uiMode = 'Padrao'
+$script:customBackground = $defaultBackground
+$script:customAccent = $defaultAccent
+$modeBar = New-Object System.Windows.Forms.Panel
+$modeBar.Location = New-Object System.Drawing.Point(0, 254)
+$modeBar.Size = New-Object System.Drawing.Size(372, 28)
+$modeBar.BackColor = $background
+$form.Controls.Add($modeBar)
+$modeButtonFontNormal = New-Object System.Drawing.Font($fontFamily, 7, [System.Drawing.FontStyle]::Bold)
+$modeButtonFontCompact = New-Object System.Drawing.Font($fontFamily, 6, [System.Drawing.FontStyle]::Bold)
+
+function Add-ModeButton {
+    param($Text, $X, $Width)
+    $button = New-Object System.Windows.Forms.Button
+    $button.Text = $Text
+    $button.Location = New-Object System.Drawing.Point($X, 2)
+    $button.Size = New-Object System.Drawing.Size($Width, 24)
+    $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $button.FlatAppearance.BorderSize = 0
+    $button.BackColor = $background
+    $button.ForeColor = $muted
+    $button.Font = $modeButtonFontNormal
+    $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $modeBar.Controls.Add($button)
+    return $button
+}
+$padraoModeButton = Add-ModeButton 'PADRAO' 12 64
+$cleanModeButton = Add-ModeButton 'CLEAN' 80 56
+$competitivoModeButton = Add-ModeButton 'COMPETITIVO' 140 92
+$customModeButton = Add-ModeButton 'CUSTOM' 236 72
+$coresButton = Add-ModeButton 'CORES' 312 52
+[void]$toolTip.SetToolTip($padraoModeButton, 'Aparencia padrao')
+[void]$toolTip.SetToolTip($cleanModeButton, 'Fundo transparente')
+[void]$toolTip.SetToolTip($competitivoModeButton, 'Somente timer e meta de bots')
+[void]$toolTip.SetToolTip($customModeButton, 'Cores escolhidas por voce')
+[void]$toolTip.SetToolTip($coresButton, 'Escolher as cores personalizadas')
+$coresButton.Visible = $false
+$padraoModeButton.Add_Click({ Set-UIMode 'Padrao' })
+$cleanModeButton.Add_Click({ Set-UIMode 'Clean' })
+$competitivoModeButton.Add_Click({ Set-UIMode 'Competitivo' })
+$customModeButton.Add_Click({ Set-UIMode 'Customizado' })
+$coresButton.Add_Click({ Show-ColorSettings })
+
+# Calcula o brilho de uma cor para decidir se o texto deve ser claro ou escuro.
+function Get-ColorLuminance {
+    param([System.Drawing.Color]$Color)
+    return (0.2126 * $Color.R + 0.7152 * $Color.G + 0.0722 * $Color.B) / 255
+}
+
+# Mistura uma cor na direcao de outra para derivar a superficie do tema.
+function Shift-Color {
+    param([System.Drawing.Color]$Color, [System.Drawing.Color]$Target, [double]$Amount)
+    $r = [int][Math]::Round($Color.R + ($Target.R - $Color.R) * $Amount)
+    $g = [int][Math]::Round($Color.G + ($Target.G - $Color.G) * $Amount)
+    $b = [int][Math]::Round($Color.B + ($Target.B - $Color.B) * $Amount)
+    return [System.Drawing.Color]::FromArgb($r, $g, $b)
+}
+
+# Recria os icones do Spotify com as cores do tema atual.
+function Update-MusicIconTheme {
+    $newIcons = @(
+        (New-MusicIcon 'backward.png' $script:foreground), (New-MusicIcon 'backward.png' $script:muted),
+        (New-MusicIcon 'play-pause.png' $script:foreground), (New-MusicIcon 'play-pause.png' $script:muted),
+        (New-MusicIcon 'forward.png' $script:foreground), (New-MusicIcon 'forward.png' $script:muted)
+    )
+    Set-MusicButtonIcon $previousTrack $newIcons[0] $newIcons[1]
+    Set-MusicButtonIcon $playTrack $newIcons[2] $newIcons[3]
+    Set-MusicButtonIcon $nextTrack $newIcons[4] $newIcons[5]
+    foreach ($icon in $script:musicIconImages) { if ($null -ne $icon) { $icon.Dispose() } }
+    $script:musicIconImages = $newIcons
+}
+
+# Aplica a paleta atual a todos os controles, incluindo o overlay do Spotify.
+function Update-ThemeColors {
+    $clean = ($script:uiMode -eq 'Clean')
+    # No modo Clean o fundo vira chave de transparencia; os botoes usam superficie solida.
+    $solidBg = if ($clean) { $script:surface } else { $script:background }
+    $form.BackColor = $script:background
+    $form.TransparencyKey = if ($clean) { $script:background } else { [System.Drawing.Color]::Empty }
+    $rule.BackColor = $script:accent
+    $brand.ForeColor = $script:foreground
+    $timeLabel.ForeColor = if ($script:finished) { $script:accent } else { $script:foreground }
+    $statusLabel.ForeColor = $script:muted
+    $botsLabel.ForeColor = $script:accent
+    foreach ($label in @($minutesLabel, $secondsLabel, $targetLabel)) { $label.ForeColor = $script:muted }
+    # No modo Clean o visor e a meta ganham uma placa solida para continuar legiveis e arrastaveis.
+    $chipColor = if ($clean) { $script:surface } else { $script:background }
+    $timeLabel.BackColor = $chipColor
+    $botsLabel.BackColor = $chipColor
+    foreach ($control in @($brand, $statusLabel, $minutesLabel, $secondsLabel, $targetLabel)) { $control.BackColor = $script:background }
+    foreach ($input in @($minutesInput, $secondsInput, $botsInput)) {
+        $input.BackColor = $script:surface
+        $input.ForeColor = $script:foreground
+    }
+    $startButton.BackColor = $script:accent
+    $startButton.ForeColor = $script:accentText
+    $resetButton.BackColor = $script:surface
+    $resetButton.ForeColor = $script:foreground
+    foreach ($button in @($randomButton, $hotkeyButton, $soundButton, $compactButton, $closeButton, $musicButton)) {
+        $button.BackColor = $solidBg
+        $button.ForeColor = $script:muted
+    }
+    $musicPanel.BackColor = $script:surface
+    $musicCover.BackColor = $chipColor
+    $musicHeaderLabel.ForeColor = $script:accent
+    $musicTitle.ForeColor = $script:foreground
+    $musicArtist.ForeColor = $script:muted
+    $musicTime.ForeColor = $script:muted
+    foreach ($button in @($previousTrack, $playTrack, $nextTrack)) { $button.BackColor = $solidBg }
+    $modeBar.BackColor = $script:background
+    $coresButton.BackColor = $solidBg
+    $coresButton.ForeColor = $script:muted
+    $modeButtons = @(
+        @($padraoModeButton, 'Padrao'), @($cleanModeButton, 'Clean'),
+        @($competitivoModeButton, 'Competitivo'), @($customModeButton, 'Customizado')
+    )
+    foreach ($pair in $modeButtons) {
+        if ($pair[1] -eq $script:uiMode) {
+            $pair[0].BackColor = $script:accent
+            $pair[0].ForeColor = $script:accentText
+        } else {
+            $pair[0].BackColor = $solidBg
+            $pair[0].ForeColor = $script:muted
+        }
+    }
+    Update-MusicIconTheme
+}
+
+# Define toda a paleta a partir do fundo e da cor de detalhe escolhida.
+function Set-ThemeColors {
+    param([System.Drawing.Color]$Background, [System.Drawing.Color]$Accent)
+    $script:background = $Background
+    $script:accent = $Accent
+    if ($Background -eq $defaultBackground -and $Accent -eq $defaultAccent) {
+        # Paleta original do aplicativo, mantida intacta no modo Padrao.
+        $script:surface = [System.Drawing.Color]::FromArgb(28, 37, 47)
+        $script:foreground = [System.Drawing.Color]::FromArgb(236, 232, 225)
+        $script:muted = [System.Drawing.Color]::FromArgb(151, 162, 171)
+        $script:accentText = $script:foreground
+    } else {
+        # Cores personalizadas: o texto acompanha a tonalidade clara ou escura do fundo.
+        $light = (Get-ColorLuminance $Background) -ge 0.5
+        if ($light) {
+            $script:foreground = [System.Drawing.Color]::FromArgb(24, 24, 24)
+            $script:muted = [System.Drawing.Color]::FromArgb(92, 92, 92)
+            $script:surface = Shift-Color $Background ([System.Drawing.Color]::Black) 0.12
+        } else {
+            $script:foreground = [System.Drawing.Color]::FromArgb(240, 240, 240)
+            $script:muted = [System.Drawing.Color]::FromArgb(160, 160, 160)
+            $script:surface = Shift-Color $Background ([System.Drawing.Color]::White) 0.10
+        }
+        $script:accentText = if ((Get-ColorLuminance $Accent) -ge 0.5) { [System.Drawing.Color]::FromArgb(24, 24, 24) } else { [System.Drawing.Color]::FromArgb(245, 245, 245) }
+    }
+    Update-ThemeColors
+}
 $musicTimer = New-Object System.Windows.Forms.Timer
 $musicTimer.Interval = 500
 
@@ -252,6 +417,7 @@ $soundDirectory = Join-Path ([Environment]::GetFolderPath('LocalApplicationData'
 $soundConfigPath = Join-Path $soundDirectory 'sound.json'
 $soundFilePath = Join-Path $soundDirectory 'alert.wav'
 $hotkeyConfigPath = Join-Path $soundDirectory 'hotkeys.json'
+$themeConfigPath = Join-Path $soundDirectory 'theme.json'
 $script:hotkeys = [RangeHotkeys]::new()
 $hotkeyActionNames = @('', 'Iniciar / continuar', 'Pausar', 'Reiniciar', 'Abrir / compacto')
 
@@ -676,72 +842,357 @@ function Show-Randomizer {
 function Set-CompactMode {
     param([bool]$Compact)
     $script:compact = $Compact
+    Set-Layout
+}
+
+# Reorganiza a janela conforme o modo de interface e o estado compacto.
+# O modo Competitivo usa o layout minimo: somente visor, meta e barra de modos.
+function Set-Layout {
+    $minimal = ($script:uiMode -eq 'Competitivo')
     foreach ($control in $settingsControls) {
-        $control.Visible = -not $Compact
+        $control.Visible = ((-not $script:compact) -and (-not $minimal))
     }
 
-    if ($Compact) {
-        $form.ClientSize = New-Object System.Drawing.Size(264, (112 + $(if ($script:musicVisible) { 146 } else { 0 })))
-        $musicPanel.Location = New-Object System.Drawing.Point(0, 112)
-        $musicButton.Location = New-Object System.Drawing.Point(187, 84)
-        $musicButton.Size = New-Object System.Drawing.Size(67, 24)
-        $statusLabel.Size = New-Object System.Drawing.Size(165, 19)
-        $brand.Text = 'RANGE'
-        $brand.Font = $compactBrandFont
-        $brand.Location = New-Object System.Drawing.Point(8, 13)
-        $brand.Size = New-Object System.Drawing.Size(43, 22)
-        $randomButton.Location = New-Object System.Drawing.Point(51, 8)
-        $randomButton.Size = New-Object System.Drawing.Size(55, 33)
-        $hotkeyButton.Location = New-Object System.Drawing.Point(106, 8)
-        $hotkeyButton.Size = New-Object System.Drawing.Size(48, 33)
-        $soundButton.Location = New-Object System.Drawing.Point(154, 8)
-        $soundButton.Size = New-Object System.Drawing.Size(36, 33)
-        $compactButton.Text = 'ABRIR'
-        $compactButton.Location = New-Object System.Drawing.Point(190, 8)
-        $compactButton.Size = New-Object System.Drawing.Size(47, 33)
-        $closeButton.Location = New-Object System.Drawing.Point(237, 8)
-        $rule.Size = New-Object System.Drawing.Size(228, 2)
-        $timeLabel.Location = New-Object System.Drawing.Point(15, 48)
+    # O painel de musica e reavaliado no fim; a barra de modos nunca e ocultada.
+    $musicPanel.Visible = $false
+    $musicTimer.Stop()
+
+    if ($minimal) {
+        $form.ClientSize = New-Object System.Drawing.Size(264, 84)
+        $brand.Visible = $false
+        $randomButton.Visible = $false
+        $hotkeyButton.Visible = $false
+        $soundButton.Visible = $false
+        $compactButton.Visible = $false
+        $musicButton.Visible = $false
+        $rule.Visible = $false
+        $statusLabel.Visible = $false
+        $closeButton.Location = New-Object System.Drawing.Point(238, 4)
+        $closeButton.Size = New-Object System.Drawing.Size(20, 20)
+        $closeButton.Font = $minimalCloseFont
+        $timeLabel.Location = New-Object System.Drawing.Point(15, 6)
         $timeLabel.Size = New-Object System.Drawing.Size(145, 43)
         $timeLabel.Font = $compactTimeFont
-        $botsLabel.Location = New-Object System.Drawing.Point(164, 59)
-        $botsLabel.Size = New-Object System.Drawing.Size(82, 22)
+        $botsLabel.Location = New-Object System.Drawing.Point(160, 17)
+        $botsLabel.Size = New-Object System.Drawing.Size(76, 22)
         $botsLabel.Font = $compactBotsFont
-        $statusLabel.Location = New-Object System.Drawing.Point(20, 88)
+        $modeBar.Location = New-Object System.Drawing.Point(0, 56)
+        $modeBar.Size = New-Object System.Drawing.Size(264, 28)
+        $compactModeButtons = $true
     } else {
-        $form.ClientSize = New-Object System.Drawing.Size(372, (254 + $(if ($script:musicVisible) { 146 } else { 0 })))
-        $musicPanel.Location = New-Object System.Drawing.Point(54, 254)
-        $musicButton.Location = New-Object System.Drawing.Point(262, 105)
-        $musicButton.Size = New-Object System.Drawing.Size(92, 33)
-        $statusLabel.Size = New-Object System.Drawing.Size(230, 19)
-        $brand.Text = 'RANGE / TIMER'
-        $brand.Font = $regularBrandFont
-        $brand.Location = New-Object System.Drawing.Point(12, 13)
-        $brand.Size = New-Object System.Drawing.Size(110, 22)
-        $randomButton.Location = New-Object System.Drawing.Point(123, 8)
-        $randomButton.Size = New-Object System.Drawing.Size(58, 33)
-        $hotkeyButton.Location = New-Object System.Drawing.Point(181, 8)
-        $hotkeyButton.Size = New-Object System.Drawing.Size(52, 33)
-        $soundButton.Location = New-Object System.Drawing.Point(233, 8)
-        $soundButton.Size = New-Object System.Drawing.Size(40, 33)
-        $compactButton.Text = 'COMPACTO'
-        $compactButton.Location = New-Object System.Drawing.Point(273, 8)
-        $compactButton.Size = New-Object System.Drawing.Size(68, 33)
-        $closeButton.Location = New-Object System.Drawing.Point(345, 8)
-        $rule.Size = New-Object System.Drawing.Size(336, 2)
-        $timeLabel.Location = New-Object System.Drawing.Point(15, 51)
-        $timeLabel.Size = New-Object System.Drawing.Size(220, 58)
-        $timeLabel.Font = $regularTimeFont
-        $botsLabel.Location = New-Object System.Drawing.Point(246, 70)
-        $botsLabel.Size = New-Object System.Drawing.Size(108, 25)
-        $botsLabel.Font = $regularBotsFont
-        $statusLabel.Location = New-Object System.Drawing.Point(20, 111)
+        # Controles ocultos no modo Competitivo voltam a aparecer nos demais.
+        $brand.Visible = $true
+        $randomButton.Visible = $true
+        $hotkeyButton.Visible = $true
+        $soundButton.Visible = $true
+        $compactButton.Visible = $true
+        $musicButton.Visible = $true
+        $rule.Visible = $true
+        $statusLabel.Visible = $true
+        $closeButton.Font = $regularCloseFont
+        $closeButton.Size = New-Object System.Drawing.Size(24, 33)
+
+        if ($script:compact) {
+            $form.ClientSize = New-Object System.Drawing.Size(264, (140 + $(if ($script:musicVisible) { 146 } else { 0 })))
+            $musicPanel.Location = New-Object System.Drawing.Point(0, 140)
+            $musicButton.Location = New-Object System.Drawing.Point(187, 84)
+            $musicButton.Size = New-Object System.Drawing.Size(67, 24)
+            $statusLabel.Size = New-Object System.Drawing.Size(165, 19)
+            $brand.Text = 'RANGE'
+            $brand.Font = $compactBrandFont
+            $brand.Location = New-Object System.Drawing.Point(8, 13)
+            $brand.Size = New-Object System.Drawing.Size(43, 22)
+            $randomButton.Location = New-Object System.Drawing.Point(51, 8)
+            $randomButton.Size = New-Object System.Drawing.Size(55, 33)
+            $hotkeyButton.Location = New-Object System.Drawing.Point(106, 8)
+            $hotkeyButton.Size = New-Object System.Drawing.Size(48, 33)
+            $soundButton.Location = New-Object System.Drawing.Point(154, 8)
+            $soundButton.Size = New-Object System.Drawing.Size(36, 33)
+            $compactButton.Text = 'ABRIR'
+            $compactButton.Location = New-Object System.Drawing.Point(190, 8)
+            $compactButton.Size = New-Object System.Drawing.Size(47, 33)
+            $closeButton.Location = New-Object System.Drawing.Point(237, 8)
+            $rule.Size = New-Object System.Drawing.Size(228, 2)
+            $timeLabel.Location = New-Object System.Drawing.Point(15, 48)
+            $timeLabel.Size = New-Object System.Drawing.Size(145, 43)
+            $timeLabel.Font = $compactTimeFont
+            $botsLabel.Location = New-Object System.Drawing.Point(164, 59)
+            $botsLabel.Size = New-Object System.Drawing.Size(82, 22)
+            $botsLabel.Font = $compactBotsFont
+            $statusLabel.Location = New-Object System.Drawing.Point(20, 88)
+            $modeBar.Location = New-Object System.Drawing.Point(0, 112)
+            $modeBar.Size = New-Object System.Drawing.Size(264, 28)
+            $compactModeButtons = $true
+        } else {
+            $form.ClientSize = New-Object System.Drawing.Size(372, (282 + $(if ($script:musicVisible) { 146 } else { 0 })))
+            $musicPanel.Location = New-Object System.Drawing.Point(54, 282)
+            $musicButton.Location = New-Object System.Drawing.Point(262, 105)
+            $musicButton.Size = New-Object System.Drawing.Size(92, 33)
+            $statusLabel.Size = New-Object System.Drawing.Size(230, 19)
+            $brand.Text = 'RANGE / TIMER'
+            $brand.Font = $regularBrandFont
+            $brand.Location = New-Object System.Drawing.Point(12, 13)
+            $brand.Size = New-Object System.Drawing.Size(110, 22)
+            $randomButton.Location = New-Object System.Drawing.Point(123, 8)
+            $randomButton.Size = New-Object System.Drawing.Size(58, 33)
+            $hotkeyButton.Location = New-Object System.Drawing.Point(181, 8)
+            $hotkeyButton.Size = New-Object System.Drawing.Size(52, 33)
+            $soundButton.Location = New-Object System.Drawing.Point(233, 8)
+            $soundButton.Size = New-Object System.Drawing.Size(40, 33)
+            $compactButton.Text = 'COMPACTO'
+            $compactButton.Location = New-Object System.Drawing.Point(273, 8)
+            $compactButton.Size = New-Object System.Drawing.Size(68, 33)
+            $closeButton.Location = New-Object System.Drawing.Point(345, 8)
+            $rule.Size = New-Object System.Drawing.Size(336, 2)
+            $timeLabel.Location = New-Object System.Drawing.Point(15, 51)
+            $timeLabel.Size = New-Object System.Drawing.Size(220, 58)
+            $timeLabel.Font = $regularTimeFont
+            $botsLabel.Location = New-Object System.Drawing.Point(246, 70)
+            $botsLabel.Size = New-Object System.Drawing.Size(108, 25)
+            $botsLabel.Font = $regularBotsFont
+            $statusLabel.Location = New-Object System.Drawing.Point(20, 111)
+            $modeBar.Location = New-Object System.Drawing.Point(0, 254)
+            $modeBar.Size = New-Object System.Drawing.Size(372, 28)
+            $compactModeButtons = $false
+        }
     }
 
+    # O painel de musica continua disponivel fora do modo Competitivo.
+    if ((-not $minimal) -and $script:musicVisible) {
+        $musicPanel.Visible = $true
+        if ($null -eq $script:spotify -or -not $script:spotify.Available) { $script:spotify = New-SpotifyState }
+        $musicTimer.Start()
+    }
+
+    # Os botoes de modo se ajustam a largura disponivel do layout atual.
+    $modeButtonLayout = if ($compactModeButtons) {
+        @(
+            @($padraoModeButton, 8, 44), @($cleanModeButton, 56, 40),
+            @($competitivoModeButton, 100, 64), @($customModeButton, 168, 46),
+            @($coresButton, 218, 38)
+        )
+    } else {
+        @(
+            @($padraoModeButton, 12, 64), @($cleanModeButton, 80, 56),
+            @($competitivoModeButton, 140, 92), @($customModeButton, 236, 72),
+            @($coresButton, 312, 52)
+        )
+    }
+    $modeButtonFont = if ($compactModeButtons) { $modeButtonFontCompact } else { $modeButtonFontNormal }
+    foreach ($pair in $modeButtonLayout) {
+        $pair[0].Location = New-Object System.Drawing.Point($pair[1], 2)
+        $pair[0].Size = New-Object System.Drawing.Size($pair[2], 24)
+        $pair[0].Font = $modeButtonFont
+    }
+
+    # Mantem a janela dentro da area de trabalho apos o redimensionamento.
     $workingArea = [System.Windows.Forms.Screen]::FromControl($form).WorkingArea
     $left = [Math]::Max($workingArea.Left, [Math]::Min($form.Left, $workingArea.Right - $form.Width))
     $top = [Math]::Max($workingArea.Top, [Math]::Min($form.Top, $workingArea.Bottom - $form.Height))
     $form.Location = New-Object System.Drawing.Point($left, $top)
+}
+
+# Aplica o modo de interface escolhido e registra a escolha para a proxima execucao.
+function Set-UIMode {
+    param([string]$Mode)
+    $script:uiMode = $Mode
+    if ($Mode -eq 'Customizado') {
+        Set-ThemeColors $script:customBackground $script:customAccent
+    } else {
+        Set-ThemeColors $defaultBackground $defaultAccent
+    }
+    # O seletor de cores so faz sentido no modo Customizado.
+    $coresButton.Visible = ($Mode -eq 'Customizado')
+    Set-Layout
+    Save-ThemeConfig
+}
+
+function Convert-ColorToHex {
+    param([System.Drawing.Color]$Color)
+    return '{0:X2}{1:X2}{2:X2}' -f $Color.R, $Color.G, $Color.B
+}
+
+function Convert-HexToColor {
+    param([string]$Hex)
+    if ($Hex -match '^[0-9A-Fa-f]{6}$') {
+        return [System.Drawing.ColorTranslator]::FromHtml('#' + $Hex)
+    }
+    return $null
+}
+
+# Guarda o modo e as cores personalizadas em theme.json.
+function Save-ThemeConfig {
+    try {
+        [void][System.IO.Directory]::CreateDirectory($soundDirectory)
+        @{ mode = $script:uiMode; background = (Convert-ColorToHex $script:customBackground); accent = (Convert-ColorToHex $script:customAccent) } |
+            ConvertTo-Json | Set-Content -LiteralPath $themeConfigPath -Encoding UTF8 -ErrorAction Stop
+    } catch { }
+}
+
+# Recupera o modo salvo; em caso de problema volta ao modo Padrao.
+function Load-ThemeConfig {
+    try {
+        if (-not (Test-Path -LiteralPath $themeConfigPath)) { return 'Padrao' }
+        $savedTheme = Get-Content -LiteralPath $themeConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $mode = [string]$savedTheme.mode
+        if (@('Padrao', 'Clean', 'Competitivo', 'Customizado') -notcontains $mode) { return 'Padrao' }
+        if ($mode -eq 'Customizado') {
+            $savedBackground = Convert-HexToColor ([string]$savedTheme.background)
+            $savedAccent = Convert-HexToColor ([string]$savedTheme.accent)
+            if ($null -ne $savedBackground) { $script:customBackground = $savedBackground }
+            if ($null -ne $savedAccent) { $script:customAccent = $savedAccent }
+        }
+        return $mode
+    } catch {
+        return 'Padrao'
+    }
+}
+
+# Janela de cores do modo Customizado com preenchimento RGB e previsao em tempo real.
+function Show-ColorSettings {
+    $dialog = New-Object System.Windows.Forms.Form
+    $dialog.Text = 'Cores personalizadas'
+    $dialog.ClientSize = New-Object System.Drawing.Size(340, 302)
+    $dialog.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $dialog.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
+    $dialog.BackColor = $background
+    $dialog.ForeColor = $foreground
+    $dialog.Font = New-Object System.Drawing.Font($fontFamily, 9)
+    $dialog.MaximizeBox = $false
+    $dialog.MinimizeBox = $false
+    $dialog.ShowInTaskbar = $false
+    $dialog.TopMost = $true
+
+    $help = New-Object System.Windows.Forms.Label
+    $help.Text = 'Defina os canais RGB de 0 a 255. A previsao mostra o resultado.'
+    $help.Location = New-Object System.Drawing.Point(18, 15)
+    $help.Size = New-Object System.Drawing.Size(304, 34)
+    $help.ForeColor = $muted
+    $dialog.Controls.Add($help)
+
+    function Add-ColorHeader {
+        param($Text, $Y)
+        $header = New-Object System.Windows.Forms.Label
+        $header.Text = $Text
+        $header.Location = New-Object System.Drawing.Point(18, $Y)
+        $header.Size = New-Object System.Drawing.Size(120, 18)
+        $header.Font = New-Object System.Drawing.Font($fontFamily, 9, [System.Drawing.FontStyle]::Bold)
+        $dialog.Controls.Add($header)
+    }
+
+    function Add-ColorNumber {
+        param($X, $Y, $Value)
+        $number = New-Object System.Windows.Forms.NumericUpDown
+        $number.Location = New-Object System.Drawing.Point($X, $Y)
+        $number.Size = New-Object System.Drawing.Size(84, 26)
+        $number.Minimum = 0
+        $number.Maximum = 255
+        $number.Value = [Math]::Max(0, [Math]::Min(255, [int]$Value))
+        $number.BackColor = $surface
+        $number.ForeColor = $foreground
+        $number.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+        $number.Font = New-Object System.Drawing.Font($fontFamily, 10)
+        $dialog.Controls.Add($number)
+        return $number
+    }
+
+    Add-ColorHeader 'FUNDO' 58
+    $bgRed = Add-ColorNumber 18 78 $script:customBackground.R
+    $bgGreen = Add-ColorNumber 128 78 $script:customBackground.G
+    $bgBlue = Add-ColorNumber 238 78 $script:customBackground.B
+    Add-ColorHeader 'DETALHE' 116
+    $acRed = Add-ColorNumber 18 136 $script:customAccent.R
+    $acGreen = Add-ColorNumber 128 136 $script:customAccent.G
+    $acBlue = Add-ColorNumber 238 136 $script:customAccent.B
+
+    # A previsao reproduz o visor do timer com as cores escolhidas.
+    $previewPanel = New-Object System.Windows.Forms.Panel
+    $previewPanel.Location = New-Object System.Drawing.Point(18, 174)
+    $previewPanel.Size = New-Object System.Drawing.Size(304, 56)
+    $dialog.Controls.Add($previewPanel)
+
+    $previewTime = New-Object System.Windows.Forms.Label
+    $previewTime.Text = '05:00'
+    $previewTime.Location = New-Object System.Drawing.Point(10, 12)
+    $previewTime.Size = New-Object System.Drawing.Size(120, 32)
+    $previewTime.BackColor = [System.Drawing.Color]::Transparent
+    $previewTime.Font = New-Object System.Drawing.Font($fontFamily, 16, [System.Drawing.FontStyle]::Bold)
+    $previewPanel.Controls.Add($previewTime)
+
+    $previewBots = New-Object System.Windows.Forms.Label
+    $previewBots.Text = '100 BOTS'
+    $previewBots.Location = New-Object System.Drawing.Point(140, 18)
+    $previewBots.Size = New-Object System.Drawing.Size(110, 22)
+    $previewBots.BackColor = [System.Drawing.Color]::Transparent
+    $previewBots.Font = New-Object System.Drawing.Font($fontFamily, 9, [System.Drawing.FontStyle]::Bold)
+    $previewPanel.Controls.Add($previewBots)
+
+    $previewSwatch = New-Object System.Windows.Forms.Panel
+    $previewSwatch.Location = New-Object System.Drawing.Point(258, 14)
+    $previewSwatch.Size = New-Object System.Drawing.Size(32, 28)
+    $previewPanel.Controls.Add($previewSwatch)
+
+    function Update-ColorPreview {
+        $chosenBackground = [System.Drawing.Color]::FromArgb([int]$bgRed.Value, [int]$bgGreen.Value, [int]$bgBlue.Value)
+        $chosenAccent = [System.Drawing.Color]::FromArgb([int]$acRed.Value, [int]$acGreen.Value, [int]$acBlue.Value)
+        $previewPanel.BackColor = $chosenBackground
+        $previewSwatch.BackColor = $chosenAccent
+        $previewBots.ForeColor = $chosenAccent
+        if ($chosenBackground -eq $defaultBackground -and $chosenAccent -eq $defaultAccent) {
+            $previewTime.ForeColor = [System.Drawing.Color]::FromArgb(236, 232, 225)
+        } elseif ((Get-ColorLuminance $chosenBackground) -ge 0.5) {
+            $previewTime.ForeColor = [System.Drawing.Color]::FromArgb(24, 24, 24)
+        } else {
+            $previewTime.ForeColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+        }
+    }
+
+    foreach ($input in @($bgRed, $bgGreen, $bgBlue, $acRed, $acGreen, $acBlue)) {
+        $input.Add_ValueChanged({ Update-ColorPreview })
+    }
+
+    function Add-ColorButton {
+        param($Text, $X, $Width, $Color)
+        $button = New-Object System.Windows.Forms.Button
+        $button.Text = $Text
+        $button.Location = New-Object System.Drawing.Point($X, 250)
+        $button.Size = New-Object System.Drawing.Size($Width, 32)
+        $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $button.FlatAppearance.BorderSize = 0
+        $button.BackColor = $Color
+        $button.ForeColor = if ($Color -eq $accent) { $accentText } else { $foreground }
+        $button.Font = New-Object System.Drawing.Font($fontFamily, 8, [System.Drawing.FontStyle]::Bold)
+        $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+        $dialog.Controls.Add($button)
+        return $button
+    }
+
+    $defaultColorsButton = Add-ColorButton 'PADRAO' 18 96 $surface
+    $applyColorsButton = Add-ColorButton 'APLICAR' 124 96 $accent
+    $cancelColorsButton = Add-ColorButton 'CANCELAR' 230 92 $surface
+
+    $defaultColorsButton.Add_Click({
+        $bgRed.Value = $defaultBackground.R
+        $bgGreen.Value = $defaultBackground.G
+        $bgBlue.Value = $defaultBackground.B
+        $acRed.Value = $defaultAccent.R
+        $acGreen.Value = $defaultAccent.G
+        $acBlue.Value = $defaultAccent.B
+    })
+    $applyColorsButton.Add_Click({
+        $script:customBackground = [System.Drawing.Color]::FromArgb([int]$bgRed.Value, [int]$bgGreen.Value, [int]$bgBlue.Value)
+        $script:customAccent = [System.Drawing.Color]::FromArgb([int]$acRed.Value, [int]$acGreen.Value, [int]$acBlue.Value)
+        $dialog.Close()
+        Set-UIMode 'Customizado'
+    })
+    $cancelColorsButton.Add_Click({ $dialog.Close() })
+
+    Update-ColorPreview
+    try {
+        [void]$dialog.ShowDialog($form)
+    } finally {
+        $dialog.Dispose()
+    }
 }
 
 # Atualiza os dados exibidos sem interromper a contagem regressiva.
@@ -803,13 +1254,8 @@ $playTrack.Add_Click({
 })
 $musicButton.Add_Click({
     $script:musicVisible = -not $script:musicVisible
-    $musicPanel.Visible = $script:musicVisible
-    Set-CompactMode $script:compact
-    if ($script:musicVisible) {
-        if ($null -eq $script:spotify -or -not $script:spotify.Available) { $script:spotify = New-SpotifyState }
-        Update-MusicPanel
-        $musicTimer.Start()
-    } else { $musicTimer.Stop() }
+    Set-Layout
+    if ($script:musicVisible) { Update-MusicPanel }
 })
 
 # Arredonda os segundos restantes para cima e impede que o visor fique negativo.
@@ -931,6 +1377,9 @@ $form.Add_FormClosed({
     $compactBrandFont.Dispose()
     $compactTimeFont.Dispose()
     $compactBotsFont.Dispose()
+    $minimalCloseFont.Dispose()
+    $modeButtonFontNormal.Dispose()
+    $modeButtonFontCompact.Dispose()
 })
 
 # Permite arrastar a janela sem bordas pelas áreas que não são campos ou botões.
@@ -953,5 +1402,8 @@ foreach ($control in @($form, $brand, $timeLabel, $statusLabel, $botsLabel, $rul
     $control.Add_MouseMove($dragMove)
     $control.Add_MouseUp($dragEnd)
 }
+
+# Reaplica o modo de interface guardado na ultima execucao.
+Set-UIMode (Load-ThemeConfig)
 
 [void]$form.ShowDialog()
